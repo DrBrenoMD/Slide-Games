@@ -1,7 +1,7 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig, Plugin} from 'vite';
+import { defineConfig, Plugin } from 'vite';
 import { WebSocketServer } from 'ws';
 
 function websocketPlugin(): Plugin {
@@ -35,12 +35,13 @@ function websocketPlugin(): Plugin {
           }
         });
       });
-    }
+    },
   };
 }
 
 export default defineConfig(() => {
   return {
+    base: '/Slide-Games/',
     plugins: [react(), tailwindcss(), websocketPlugin()],
     resolve: {
       alias: {
