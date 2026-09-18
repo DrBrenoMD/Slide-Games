@@ -1,0 +1,7 @@
+{
+  "name": "ApresentaLive - Slides, Quizes & Jogos Interativos",
+  "description": "Plataforma completa de slides interativos, quizes competitivos, enquetes ao vivo, dinâmicas de times e jogos sociais como O Infiltrado com QR Code e Motion Graphics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
