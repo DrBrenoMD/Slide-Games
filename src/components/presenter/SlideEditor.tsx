@@ -7,7 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import { UserAuthBar } from '../common/UserAuthBar';
 import { NewSlideModal } from './NewSlideModal';
 import { SlideCanvasEditor } from './SlideCanvasEditor';
-import { ThemeGalleryModal } from './ThemeGalleryModal';
+import { ThemeSidePanel } from './ThemeSidePanel';
 import {
   Plus,
   Trash2,
@@ -878,65 +878,94 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
             />
           </div>
 
-          {/* Right Sidebar: Slide Properties Editor */}
-          <div className="w-full md:w-80 bg-slate-900 border-l border-slate-800 flex flex-col shrink-0 overflow-y-auto p-4 space-y-5">
-            {/* Abas internas de propriedades */}
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-              <span className="text-xs uppercase tracking-wider font-extrabold text-slate-400">
-                Propriedades do Slide
-              </span>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => setIsThemeGalleryOpen(true)}
-                  className="px-2 py-1 rounded-lg text-xs font-bold cursor-pointer bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white flex items-center gap-1 shadow"
-                  title="Galeria de Temas (+30 Estilos)"
-                >
-                  <Palette className="w-3.5 h-3.5 text-amber-300" />
-                  <span className="text-[11px]">Temas</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveSlideTab('content')}
-                  className={`p-1.5 rounded-lg text-xs font-bold cursor-pointer ${
-                    activeSlideTab === 'content' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
-                  }`}
-                  title="Conteúdo"
-                >
-                  <Tag className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveSlideTab('timing')}
-                  className={`p-1.5 rounded-lg text-xs font-bold cursor-pointer ${
-                    activeSlideTab === 'timing' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
-                  }`}
-                  title="Tempo e Regras"
-                >
-                  <Clock className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
+          {/* Right Sidebar: Slide Properties Editor ou Painel Lateral de Temas */}
+          <div className="w-full md:w-96 bg-slate-900 border-l border-slate-800 flex flex-col shrink-0 overflow-y-auto p-4 space-y-5">
+            {isThemeGalleryOpen ? (
+              <ThemeSidePanel
+                currentSlide={currentSlide}
+                onApplyThemeToCurrentSlide={(themeUpdates) => {
+                  updateCurrentSlide({
+                    theme: {
+                      ...currentSlide.theme,
+                      ...themeUpdates
+                    }
+                  });
+                  showToast('✓ Tema aplicado ao slide atual!');
+                }}
+                onApplyThemeToAllSlides={(themeUpdates) => {
+                  const updatedSlides = slides.map((s) => ({
+                    ...s,
+                    theme: {
+                      ...s.theme,
+                      ...themeUpdates
+                    }
+                  }));
+                  onUpdateSlides(updatedSlides);
+                  showToast('✓ Tema aplicado a todos os slides da apresentação!');
+                }}
+                onClose={() => setIsThemeGalleryOpen(false)}
+              />
+            ) : (
+              <>
+                {/* Abas internas de propriedades */}
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                  <span className="text-xs uppercase tracking-wider font-extrabold text-slate-400">
+                    Propriedades do Slide
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setIsThemeGalleryOpen(true)}
+                      className="px-2 py-1 rounded-lg text-xs font-bold cursor-pointer bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white flex items-center gap-1 shadow"
+                      title="Galeria de Temas (+30 Estilos)"
+                    >
+                      <Palette className="w-3.5 h-3.5 text-amber-300" />
+                      <span className="text-[11px]">Temas</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveSlideTab('content')}
+                      className={`p-1.5 rounded-lg text-xs font-bold cursor-pointer ${
+                        activeSlideTab === 'content' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+                      }`}
+                      title="Conteúdo"
+                    >
+                      <Tag className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveSlideTab('timing')}
+                      className={`p-1.5 rounded-lg text-xs font-bold cursor-pointer ${
+                        activeSlideTab === 'timing' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+                      }`}
+                      title="Tempo e Regras"
+                    >
+                      <Clock className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
 
-            {/* Banner de Acesso Rápido a Temas Visuais */}
-            <div className="p-3 rounded-2xl bg-gradient-to-br from-indigo-950/60 to-purple-950/50 border border-indigo-500/30 flex items-center justify-between">
-              <div>
-                <span className="text-[10px] uppercase font-extrabold tracking-wider text-indigo-300 block">
-                  Design do Slide
-                </span>
-                <span className="text-xs font-bold text-white">
-                  {currentSlide.theme?.id ? currentSlide.theme.id.replace('theme_', '').replace(/_/g, ' ') : 'Padrão'}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsThemeGalleryOpen(true)}
-                className="px-2.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-black flex items-center gap-1 shadow cursor-pointer transition-all active:scale-95"
-              >
-                <Palette className="w-3 h-3 text-amber-300" />
-                <span>Trocar Tema</span>
-              </button>
-            </div>
+                {/* Banner de Acesso Rápido a Temas Visuais */}
+                <div className="p-3 rounded-2xl bg-gradient-to-br from-indigo-950/60 to-purple-950/50 border border-indigo-500/30 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] uppercase font-extrabold tracking-wider text-indigo-300 block">
+                      Design do Slide
+                    </span>
+                    <span className="text-xs font-bold text-white">
+                      {currentSlide.theme?.id ? currentSlide.theme.id.replace('theme_', '').replace(/_/g, ' ') : 'Padrão'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsThemeGalleryOpen(true)}
+                    className="px-2.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-black flex items-center gap-1 shadow cursor-pointer transition-all active:scale-95"
+                  >
+                    <Palette className="w-3 h-3 text-amber-300" />
+                    <span>Trocar Tema</span>
+                  </button>
+                </div>
+              </>
+            )}
 
             {/* SELEÇÃO DO TIPO DE SLIDE COM CONVERSÃO INTELIGENTE */}
             <div>
@@ -2078,33 +2107,6 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
         isOpen={isNewSlideModalOpen}
         onClose={() => setIsNewSlideModalOpen(false)}
         onSelectType={handleSelectNewSlideType}
-      />
-
-      {/* MODAL: GALERIA DE TEMAS VISUAIS (+30 Temas e Custom) */}
-      <ThemeGalleryModal
-        isOpen={isThemeGalleryOpen}
-        onClose={() => setIsThemeGalleryOpen(false)}
-        currentSlide={currentSlide}
-        onApplyThemeToCurrentSlide={(themeUpdates) => {
-          updateCurrentSlide({
-            theme: {
-              ...currentSlide.theme,
-              ...themeUpdates
-            }
-          });
-          showToast('✓ Tema aplicado ao slide atual!');
-        }}
-        onApplyThemeToAllSlides={(themeUpdates) => {
-          const updatedSlides = slides.map((s) => ({
-            ...s,
-            theme: {
-              ...s.theme,
-              ...themeUpdates
-            }
-          }));
-          onUpdateSlides(updatedSlides);
-          showToast('✓ Tema aplicado a todos os slides da apresentação!');
-        }}
       />
     </div>
   );

@@ -25,13 +25,16 @@ export type ActionType =
   | 'SUBMIT_TERM'
   | 'SEND_REACTION'
   | 'IMPOSTOR_VOTE'
-  | 'REQUEST_FULL_STATE';
+  | 'REQUEST_FULL_STATE'
+  | 'SLIDES_UPDATE'
+  | 'PRESENTER_HEARTBEAT';
 
 export interface RealtimeMessage {
   msgId?: string;
   type: ActionType;
   roomCode: string;
   senderId: string;
+  senderClientId?: string;
   payload: any;
   timestamp: number;
 }
@@ -53,8 +56,20 @@ class RealtimeSyncService {
   private wsRetryCount: number = 0;
   private maxWsRetries: number = 2;
   private peerReconnectTimeout: any = null;
+  public readonly clientId: string;
 
   constructor() {
+    this.clientId = typeof window !== 'undefined'
+      ? (sessionStorage.getItem('apresentalive_sync_client_id') || `client_${Math.random().toString(36).substring(2, 10)}_${Date.now()}`)
+      : `srv_${Date.now()}`;
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem('apresentalive_sync_client_id', this.clientId);
+      } catch {
+        // ignore
+      }
+    }
+
     if (typeof window !== 'undefined') {
       // 1. Configura BroadcastChannel para sincronização instantânea na mesma máquina (2ª Tela / Projetor)
       try {
@@ -378,6 +393,7 @@ class RealtimeSyncService {
       type,
       roomCode: cleanRoomCode,
       senderId,
+      senderClientId: this.clientId,
       payload,
       timestamp
     };
@@ -456,6 +472,10 @@ class RealtimeSyncService {
     return () => {
       this.listeners.delete(listener);
     };
+  }
+
+  public getClientId(): string {
+    return this.clientId;
   }
 
   public destroy() {

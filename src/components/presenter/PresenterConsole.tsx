@@ -37,7 +37,8 @@ import {
   Cloud,
   Gamepad2,
   Crown,
-  Check
+  Check,
+  AlertCircle
 } from 'lucide-react';
 
 interface PresenterConsoleProps {
@@ -81,6 +82,7 @@ interface PresenterConsoleProps {
   onChangePresenterPlayerName?: (name: string) => void;
   presenterPlayerAvatar?: string;
   onChangePresenterPlayerAvatar?: (avatar: string) => void;
+  coPresentersCount?: number;
 }
 
 export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
@@ -123,7 +125,8 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
   presenterPlayerName = 'Apresentador',
   onChangePresenterPlayerName,
   presenterPlayerAvatar = '👑',
-  onChangePresenterPlayerAvatar
+  onChangePresenterPlayerAvatar,
+  coPresentersCount = 1
 }) => {
   const currentSlide = slides[currentSlideIndex] || slides[0];
   const { user, savePresentationToCloud, loginWithGoogle } = useAuth();
@@ -138,6 +141,7 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
   const [isPresentationPreviewExpanded, setIsPresentationPreviewExpanded] = useState(false);
   const [manualWordInput, setManualWordInput] = useState('');
   const [showManualWordField, setShowManualWordField] = useState(false);
+  const [startGameNotice, setStartGameNotice] = useState<string | null>(null);
 
   // Modo Apresentador Também Joga (Local & Persistido)
   const [isPresenterPlayingLocal, setIsPresenterPlayingLocal] = useState<boolean>(() => {
@@ -308,6 +312,7 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
       : (cat ? cat.words : ['Moisés', 'Davi', 'Salomão']);
     const newWord = wordsPool[Math.floor(Math.random() * wordsPool.length)];
     onUpdateImpostorConfig({ secretWord: newWord });
+    setStartGameNotice(null);
   };
 
   const currentCategoryObj = PRESET_WORD_CATEGORIES.find((c) => c.name === impostorConfig.category) || PRESET_WORD_CATEGORIES[0];
@@ -318,6 +323,7 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
   const handleSelectWordFromList = (word: string) => {
     if (!word) return;
     onUpdateImpostorConfig({ secretWord: word });
+    setStartGameNotice(null);
   };
 
   const handleApplyManualWord = () => {
@@ -325,17 +331,27 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
     onUpdateImpostorConfig({ secretWord: manualWordInput.trim() });
     setManualWordInput('');
     setShowManualWordField(false);
+    setStartGameNotice(null);
   };
 
   const handleStartGame = () => {
+    const wordToUse = impostorConfig.secretWord?.trim();
+    if (!wordToUse) {
+      setStartGameNotice('Por favor, defina a palavra secreta antes de iniciar! Selecione uma da lista, sorteie ou digite manualmente.');
+      return;
+    }
+
+    // Se ainda não houver papéis definidos, sortear automaticamente entre os participantes
+    const hasRoles = (impostorConfig.impostorParticipantIds && impostorConfig.impostorParticipantIds.length > 0);
+    if (!hasRoles && participants.length > 0) {
+      handleAutoRaffleAgentsAndImpostor();
+    }
+
+    setStartGameNotice(null);
+
     if (onStartImpostorGame) {
       onStartImpostorGame();
     } else {
-      let wordToUse = impostorConfig.secretWord?.trim();
-      if (!wordToUse) {
-        const wordsPool = categoryWordsList.length > 0 ? categoryWordsList : ['Moisés', 'Davi', 'Salomão'];
-        wordToUse = wordsPool[Math.floor(Math.random() * wordsPool.length)] || 'Moisés';
-      }
       onUpdateImpostorConfig({
         gameStarted: true,
         secretWord: wordToUse,
@@ -478,6 +494,12 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
               <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold uppercase tracking-wider">
                 Ao Vivo
               </span>
+              {coPresentersCount > 1 && (
+                <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm" title="Múltiplos apresentadores conectados e sincronizados em tempo real">
+                  <Users className="w-3 h-3 text-cyan-400" />
+                  <span>{coPresentersCount} Apresentadores</span>
+                </span>
+              )}
               {isPresenterPlaying && (
                 <span className="px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm">
                   <Gamepad2 className="w-3 h-3 text-purple-400" />
@@ -1018,30 +1040,54 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
               ) : (
                 /* MODO PADRÃO DE ADMIN OU OVERRIDE (COM VISIBILIDADE DE TODOS OS SEGREDOS) */
                 <div className="space-y-4">
+                  {/* Aviso de validação se tentar iniciar sem selecionar a palavra */}
+                  {startGameNotice && (
+                    <div className="p-3.5 rounded-2xl bg-amber-950/80 border-2 border-amber-500/70 text-amber-200 text-xs font-bold flex items-center justify-between gap-2 animate-in fade-in slide-in-from-top-2">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
+                        <span>{startGameNotice}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setStartGameNotice(null)}
+                        className="px-2 py-1 rounded-lg bg-amber-900/60 hover:bg-amber-900 text-amber-100 text-[10px] uppercase font-black cursor-pointer"
+                      >
+                        Entendi
+                      </button>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Palavra Secreta - Seleção da Lista, Sorteio ou Digitação Manual */}
-                    <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-3">
+                    {/* PASSO 1: Palavra Secreta - Seleção da Lista, Sorteio ou Digitação Manual */}
+                    <div className={`p-4 rounded-2xl bg-slate-950/80 border space-y-3 transition-all ${
+                      !impostorConfig.secretWord
+                        ? 'border-amber-500/60 shadow-lg shadow-amber-950/20'
+                        : 'border-emerald-500/40'
+                    }`}>
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-400 block">
-                          Palavra Secreta (Agentes e Civis):
+                        <span className="text-xs font-black text-slate-200 flex items-center gap-1.5">
+                          <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[11px] font-black">1</span>
+                          <span>Palavra Secreta (Agentes e Civis):</span>
                         </span>
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-black uppercase tracking-wider ${
+                        <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider ${
                           impostorConfig.secretWord
-                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                            : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                            : 'bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse'
                         }`}>
-                          {impostorConfig.secretWord ? 'Palavra Definida' : 'Aguardando Escolha'}
+                          {impostorConfig.secretWord ? '✓ Palavra Definida' : 'Aguardando Escolha'}
                         </span>
                       </div>
 
-                      <div className="flex items-center justify-between gap-3 bg-slate-900/80 p-3 rounded-xl border border-slate-800">
-                        <span className="text-xl sm:text-2xl font-black text-emerald-400 font-mono tracking-wide truncate">
-                          {hideSecrets ? '••••••••' : impostorConfig.secretWord || '(Nenhuma palavra definida)'}
+                      <div className="flex items-center justify-between gap-3 bg-slate-900/90 p-3 rounded-xl border border-slate-800">
+                        <span className={`text-xl sm:text-2xl font-black font-mono tracking-wide truncate ${
+                          impostorConfig.secretWord ? 'text-emerald-400' : 'text-slate-500 italic'
+                        }`}>
+                          {hideSecrets ? '••••••••' : impostorConfig.secretWord || '(Selecione ou sorteie abaixo)'}
                         </span>
                         <button
                           type="button"
                           onClick={handleRandomizeWord}
-                          className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer border border-slate-700 transition-colors shrink-0"
+                          className="px-3 py-2 rounded-xl bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 text-xs font-black flex items-center gap-1.5 cursor-pointer border border-amber-500/40 transition-colors shrink-0"
                           title="Sortear uma palavra aleatória da lista do tema"
                         >
                           <Shuffle className="w-3.5 h-3.5 text-amber-400" />
@@ -1098,12 +1144,13 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
                       </div>
                     </div>
 
-                    {/* Infiltrado Sorteado */}
-                    <div className="p-4 rounded-2xl bg-rose-950/30 border border-rose-500/50 flex flex-col justify-between gap-3">
+                    {/* PASSO 2: Agentes & Infiltrados */}
+                    <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 flex flex-col justify-between gap-3">
                       <div className="space-y-1">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-rose-300 block">
-                            🚨 Infiltrado Sorteado (Não sabe a palavra):
+                          <span className="text-xs font-black text-slate-200 flex items-center gap-1.5">
+                            <span className="w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center text-[11px] font-black">2</span>
+                            <span>🚨 Infiltrado Sorteado (Não sabe a palavra):</span>
                           </span>
                           <span className="text-xs text-rose-400 font-bold">
                             {impostorParticipants.length} definido{impostorParticipants.length === 1 ? '' : 's'}
@@ -1121,7 +1168,7 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
                             ))
                           ) : (
                             <span className="text-xs text-amber-300 font-bold">
-                              Nenhum infiltrado definido ainda nesta rodada.
+                              Nenhum papel sorteado ainda nesta rodada.
                             </span>
                           )}
                         </div>
@@ -1149,14 +1196,17 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
                     </div>
                   </div>
 
-                  {/* Banner / Card de Início do Jogo */}
+                  {/* PASSO 3: Banner / Card de Início do Jogo */}
                   <div className={`p-4 rounded-2xl border-2 flex flex-wrap items-center justify-between gap-4 transition-all ${
                     !impostorConfig.gameStarted
-                      ? 'bg-gradient-to-r from-emerald-950/60 via-slate-900 to-indigo-950/60 border-emerald-500/60 shadow-xl'
+                      ? impostorConfig.secretWord
+                        ? 'bg-gradient-to-r from-emerald-950/80 via-slate-900 to-indigo-950/80 border-emerald-500 shadow-xl shadow-emerald-950/40'
+                        : 'bg-slate-950 border-slate-800'
                       : 'bg-slate-950/60 border-slate-800'
                   }`}>
                     <div className="space-y-1 max-w-md">
                       <div className="flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[11px] font-black">3</span>
                         <span className={`w-2.5 h-2.5 rounded-full ${!impostorConfig.gameStarted ? 'bg-amber-400 animate-ping' : 'bg-emerald-400'}`} />
                         <span className={`text-xs font-black uppercase tracking-wider ${!impostorConfig.gameStarted ? 'text-amber-300' : 'text-emerald-300'}`}>
                           {!impostorConfig.gameStarted ? 'Fase de Preparação (Aguardando Início)' : 'Partida em Andamento'}
@@ -1164,7 +1214,9 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
                       </div>
                       <p className="text-xs text-slate-300">
                         {!impostorConfig.gameStarted
-                          ? 'Os participantes estão na tela de espera. Selecione a palavra, defina os agentes e clique no botão para iniciar e liberar nos celulares!'
+                          ? impostorConfig.secretWord
+                            ? '✓ Palavra pronta! Clique abaixo para iniciar o jogo e liberar as informações nos celulares dos participantes!'
+                            : 'Aguardando definição da palavra secreta no Passo 1 para liberar o início da partida.'
                           : 'A palavra e os papéis já foram transmitidos aos participantes. Controle as pistas e a votação abaixo.'}
                       </p>
                     </div>
@@ -1174,9 +1226,13 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
                         <button
                           type="button"
                           onClick={handleStartGame}
-                          className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-sm shadow-xl shadow-emerald-950/50 cursor-pointer flex items-center gap-2 transition-transform active:scale-95 animate-pulse"
+                          className={`px-6 py-3.5 rounded-2xl font-black text-sm flex items-center gap-2 transition-all cursor-pointer ${
+                            impostorConfig.secretWord
+                              ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-xl shadow-emerald-950/60 active:scale-95 animate-pulse'
+                              : 'bg-slate-800 hover:bg-slate-700 text-slate-400 border border-slate-700'
+                          }`}
                         >
-                          <Sparkles className="w-5 h-5" />
+                          <Sparkles className="w-5 h-5 text-amber-300" />
                           <span>▶ Iniciar Jogo do Infiltrado</span>
                         </button>
                       ) : (
@@ -1378,8 +1434,8 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
                             </span>
                           )}
                           {isEliminated && (
-                            <span className="text-rose-400 font-bold">
-                              💀 Fora
+                            <span className="px-1.5 py-0.5 rounded bg-rose-950/90 border border-rose-500/60 text-rose-300 font-black text-[9px] uppercase tracking-wider shadow-sm">
+                              💀 Eliminado
                             </span>
                           )}
                         </div>
@@ -1480,9 +1536,12 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
               {impostorConfig.revealState === 'round_elimination' && (
                 <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
                   <div className="flex items-center justify-between flex-wrap gap-2">
-                    <span className="text-xs font-bold text-slate-300">
-                      Eliminado na Rodada: <strong className="text-rose-400 font-extrabold">{participants.find(p => p.id === impostorConfig.lastEliminatedId)?.name || 'Participante'}</strong> ({impostorConfig.lastEliminatedWasImpostor ? '🚨 Era Infiltrado' : '🛡️ Era Agente Inocente'})
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">{impostorConfig.lastEliminatedAvatar || participants.find(p => p.id === impostorConfig.lastEliminatedId)?.avatar || '👤'}</span>
+                      <span className="text-xs font-bold text-slate-300">
+                        Eliminado na Rodada: <strong className="text-rose-400 font-extrabold">{impostorConfig.lastEliminatedName || participants.find(p => p.id === impostorConfig.lastEliminatedId)?.name || 'Participante'}</strong> ({impostorConfig.lastEliminatedWasImpostor ? '🚨 Era Infiltrado' : '🛡️ Era Agente Inocente'})
+                      </span>
+                    </div>
                     <span className="text-xs font-mono text-amber-400 font-bold">
                       Rodada {impostorConfig.currentRound || 1} de {impostorConfig.roundsTotal || 3}
                     </span>

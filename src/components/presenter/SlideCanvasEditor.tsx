@@ -8,7 +8,7 @@ import { WordCloudSlideRenderer } from '../slides/WordCloudSlideRenderer';
 import { ImpostorSlideRenderer } from '../slides/ImpostorSlideRenderer';
 import { AddElementModal } from './AddElementModal';
 import { ElementPropertyInspector } from './ElementPropertyInspector';
-import { ThemeGalleryModal } from './ThemeGalleryModal';
+import { ThemeSidePanel } from './ThemeSidePanel';
 import { ThemeVisualDecorator } from '../themes/ThemeVisualDecorator';
 import { getComputedThemeStyles } from '../../utils/themeStyles';
 import { convertPresetSlideToCanvasElements } from '../../utils/slidePresets';
@@ -699,12 +699,19 @@ export const SlideCanvasEditor: React.FC<SlideCanvasEditorProps> = ({
 
           <button
             type="button"
-            onClick={() => setIsThemeModalOpen(true)}
-            className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer shadow-md shadow-indigo-600/30 transition-all active:scale-95"
-            title="Abrir Galeria com +30 Temas Prontos e Criador de Temas Customizados"
+            onClick={() => {
+              setSelectedElementId(null);
+              setIsThemeModalOpen((prev) => !prev);
+            }}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 cursor-pointer shadow-md transition-all active:scale-95 ${
+              isThemeModalOpen
+                ? 'bg-gradient-to-r from-amber-500 to-rose-500 text-white ring-2 ring-amber-400/50'
+                : 'bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white shadow-indigo-600/30'
+            }`}
+            title="Abrir ou fechar Galeria de Temas lateralmente ao Canva"
           >
             <Palette className="w-3.5 h-3.5 text-amber-300" />
-            <span>🎨 Galeria de Temas</span>
+            <span>{isThemeModalOpen ? '✕ Fechar Temas' : '🎨 Galeria de Temas'}</span>
           </button>
         </div>
 
@@ -807,10 +814,10 @@ export const SlideCanvasEditor: React.FC<SlideCanvasEditorProps> = ({
         </div>
       </div>
 
-      {/* Área Principal: Canvas 16:9 + Inspetor Lateral */}
+      {/* Área Principal: Canvas 16:9 + Inspetor Lateral ou Painel de Temas Lateral */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         {/* Canvas Visual Interativo do Slide */}
-        <div className={selectedElement ? 'lg:col-span-8' : 'lg:col-span-12'}>
+        <div className={isThemeModalOpen ? 'lg:col-span-7' : (selectedElement ? 'lg:col-span-8' : 'lg:col-span-12')}>
           <div
             ref={canvasRef}
             onClick={() => {
@@ -1105,19 +1112,62 @@ export const SlideCanvasEditor: React.FC<SlideCanvasEditorProps> = ({
           )}
         </div>
 
-        {/* Painel Lateral: Inspetor de Propriedades do Elemento Selecionado */}
-        {selectedElement && (
-          <div className="lg:col-span-4">
-            <ElementPropertyInspector
-              element={selectedElement}
-              onUpdateElement={handleUpdateElement}
-              onDuplicateElement={handleDuplicateElement}
-              onDeleteElement={handleDeleteElement}
-              onBringForward={handleBringForward}
-              onSendBackward={handleSendBackward}
-              onClose={() => setSelectedElementId(null)}
+        {/* Painel Lateral: Edição de Temas ou Inspetor de Elemento Lateralmente ao Canva */}
+        {isThemeModalOpen ? (
+          <div className="lg:col-span-5 space-y-3">
+            {selectedElement && (
+              <div className="flex items-center justify-between p-2 rounded-xl bg-slate-900 border border-slate-800 text-xs">
+                <span className="text-slate-400 font-bold truncate mr-2">Elemento selecionado: <strong className="text-white">{selectedElement.name || selectedElement.text || selectedElement.type}</strong></span>
+                <button
+                  type="button"
+                  onClick={() => setIsThemeModalOpen(false)}
+                  className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px] cursor-pointer shrink-0"
+                >
+                  Ver Propriedades
+                </button>
+              </div>
+            )}
+            <ThemeSidePanel
+              currentSlide={slide}
+              onApplyThemeToCurrentSlide={(themeUpdates) => {
+                onUpdateSlide({
+                  ...slide,
+                  theme: {
+                    ...slide.theme,
+                    ...themeUpdates
+                  }
+                });
+              }}
+              onApplyThemeToAllSlides={(themeUpdates) => {
+                if (onApplyThemeToAllSlides) {
+                  onApplyThemeToAllSlides(themeUpdates);
+                } else {
+                  onUpdateSlide({
+                    ...slide,
+                    theme: {
+                      ...slide.theme,
+                      ...themeUpdates
+                    }
+                  });
+                }
+              }}
+              onClose={() => setIsThemeModalOpen(false)}
             />
           </div>
+        ) : (
+          selectedElement && (
+            <div className="lg:col-span-4">
+              <ElementPropertyInspector
+                element={selectedElement}
+                onUpdateElement={handleUpdateElement}
+                onDuplicateElement={handleDuplicateElement}
+                onDeleteElement={handleDeleteElement}
+                onBringForward={handleBringForward}
+                onSendBackward={handleSendBackward}
+                onClose={() => setSelectedElementId(null)}
+              />
+            </div>
+          )
         )}
       </div>
 
@@ -1127,35 +1177,6 @@ export const SlideCanvasEditor: React.FC<SlideCanvasEditorProps> = ({
         onClose={() => setIsAddModalOpen(false)}
         onAddElement={handleAddElement}
         currentElementsCount={elements.length}
-      />
-
-      {/* Modal da Galeria de Temas (+30 Temas e Custom) */}
-      <ThemeGalleryModal
-        isOpen={isThemeModalOpen}
-        onClose={() => setIsThemeModalOpen(false)}
-        currentSlide={slide}
-        onApplyThemeToCurrentSlide={(themeUpdates) => {
-          onUpdateSlide({
-            ...slide,
-            theme: {
-              ...slide.theme,
-              ...themeUpdates
-            }
-          });
-        }}
-        onApplyThemeToAllSlides={(themeUpdates) => {
-          if (onApplyThemeToAllSlides) {
-            onApplyThemeToAllSlides(themeUpdates);
-          } else {
-            onUpdateSlide({
-              ...slide,
-              theme: {
-                ...slide.theme,
-                ...themeUpdates
-              }
-            });
-          }
-        }}
       />
     </div>
   );

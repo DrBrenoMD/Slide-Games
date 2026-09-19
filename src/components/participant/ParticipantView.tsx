@@ -660,23 +660,56 @@ export const ParticipantView: React.FC<ParticipantViewProps> = ({
 
                 {/* Se a revelação de eliminação da rodada estiver ativa */}
                 {impostorConfig?.revealState === 'round_elimination' && (
-                  <div className="p-4 rounded-3xl bg-slate-900 border border-slate-800 text-center space-y-2 shadow-xl">
-                    <span className="text-[11px] font-black uppercase tracking-wider text-amber-400 block">
-                      Resultado da Rodada {impostorConfig.currentRound}
+                  <div className="p-4 sm:p-5 rounded-3xl bg-slate-900 border border-slate-800 text-center space-y-3 shadow-2xl">
+                    <span className="px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 text-[11px] font-black uppercase tracking-wider border border-amber-500/30 inline-block">
+                      Resultado da Rodada {impostorConfig.currentRound || 1}
                     </span>
-                    <div className="text-sm font-bold text-white">
-                      {impostorConfig.lastEliminatedWasImpostor ? (
-                        <span className="text-rose-400">
-                          🚨 Um Infiltrado foi desmascarado e eliminado!
+
+                    {/* Jogador Eliminado: Avatar e Nome com Destaque */}
+                    <div className="flex flex-col items-center justify-center p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-2">
+                      <div className="relative">
+                        <span className="text-4xl sm:text-5xl block animate-bounce">
+                          {impostorConfig.lastEliminatedAvatar || '👤'}
                         </span>
-                      ) : (
-                        <span className="text-sky-300">
-                          🛡️ Um Agente Inocente foi eliminado!
+                        <span className="absolute -bottom-1 -right-1 text-xl">💀</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider block">
+                          Jogador Eliminado na Rodada:
                         </span>
-                      )}
+                        <h3 className="text-lg sm:text-xl font-black text-white">
+                          {impostorConfig.lastEliminatedName || 'Jogador'}
+                        </h3>
+                        {typeof impostorConfig.lastEliminatedVotes === 'number' && (
+                          <span className="text-[11px] text-slate-400 font-semibold">
+                            Recebeu {impostorConfig.lastEliminatedVotes} {impostorConfig.lastEliminatedVotes === 1 ? 'voto' : 'votos'}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Revelação do Papel Secreto */}
+                      <div className="w-full pt-2 border-t border-slate-800">
+                        {impostorConfig.lastEliminatedWasImpostor ? (
+                          <div className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/50 text-rose-300 text-xs font-black flex items-center justify-center gap-1.5 shadow">
+                            <span>🚨 ERA UM AGENTE INFILTRADO!</span>
+                          </div>
+                        ) : (
+                          <div className="p-2.5 rounded-xl bg-sky-950/60 border border-sky-500/50 text-sky-300 text-xs font-black flex items-center justify-center gap-1.5 shadow">
+                            <span>🛡️ ERA UM AGENTE INOCENTE!</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
+
+                    {/* Alerta Especial se o usuário atual foi o eliminado */}
+                    {impostorConfig.lastEliminatedId === participant.id && (
+                      <div className="p-3 rounded-2xl bg-rose-600/25 border border-rose-500 text-rose-200 text-xs font-bold">
+                        ⚠️ Você foi o mais votado da rodada e foi eliminado! Mas continue na sala para acompanhar as próximas rodadas e o resultado final.
+                      </div>
+                    )}
+
                     <p className="text-xs text-slate-400">
-                      Acompanhe o telão principal para ver todos os detalhes e a próxima rodada.
+                      Acompanhe o telão principal para ver o placar geral e o início da próxima rodada.
                     </p>
                   </div>
                 )}

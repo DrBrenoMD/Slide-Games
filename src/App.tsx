@@ -154,6 +154,10 @@ export default function App() {
     return '👑';
   });
 
+  // Rastreamento de múltiplos co-apresentadores simultâneos na mesma sala
+  const [coPresentersCount, setCoPresentersCount] = useState<number>(1);
+  const coPresentersRef = useRef<Map<string, number>>(new Map());
+
   // Referência para timer interval
   const timerRef = useRef<any>(null);
 
@@ -302,11 +306,9 @@ export default function App() {
   useEffect(() => {
     if (role === 'presenter' && isPresenterAuthenticated) {
       const interval = setInterval(() => {
-        realtimeService.broadcast('SYNC_STATE', roomCode, 'presenter', {
+        realtimeService.broadcast('PRESENTER_HEARTBEAT', roomCode, 'presenter', {
           currentSlideIndex,
-          showAnswers,
-          timerRemaining,
-          timerActive
+          active: true
         });
       }, 3000);
       return () => clearInterval(interval);
@@ -315,9 +317,6 @@ export default function App() {
     role,
     isPresenterAuthenticated,
     currentSlideIndex,
-    showAnswers,
-    timerRemaining,
-    timerActive,
     roomCode
   ]);
 
@@ -461,8 +460,21 @@ export default function App() {
         });
       }
 
-      // 7. Sincronização geral de estado recebida pelo Participante ou Projetor
-      if (msg.type === 'SYNC_STATE' && role === 'participant' && msg.payload) {
+      // 7. Sincronização geral de estado recebida pelo Participante, Projetor ou Co-Apresentador
+      if (msg.type === 'SYNC_STATE' && msg.payload) {
+        const isFromSelf = Boolean(msg.senderClientId && msg.senderClientId === realtimeService.getClientId());
+        if (isFromSelf) return;
+
+        // Se somos apresentador e a mensagem veio de outro apresentador, registra co-apresentador
+        if (role === 'presenter' && msg.senderClientId) {
+          coPresentersRef.current.set(msg.senderClientId, Date.now());
+          const now = Date.now();
+          for (const [id, ts] of coPresentersRef.current.entries()) {
+            if (now - ts > 10000) coPresentersRef.current.delete(id);
+          }
+          setCoPresentersCount(coPresentersRef.current.size + 1);
+        }
+
         const data = msg.payload;
         if (data.currentSlideIndex !== undefined) setCurrentSlideIndex(data.currentSlideIndex);
         if (data.showAnswers !== undefined) setShowAnswers(data.showAnswers);
@@ -549,8 +561,16 @@ export default function App() {
         }
       }
 
-      // 11. Troca de slide direta
-      if (msg.type === 'CHANGE_SLIDE' && role === 'participant' && msg.payload) {
+      // 11. Troca de slide direta (sincroniza tanto participantes quanto co-apresentadores)
+      if (msg.type === 'CHANGE_SLIDE' && msg.payload) {
+        const isFromSelf = Boolean(msg.senderClientId && msg.senderClientId === realtimeService.getClientId());
+        if (isFromSelf) return;
+
+        if (role === 'presenter' && msg.senderClientId) {
+          coPresentersRef.current.set(msg.senderClientId, Date.now());
+          setCoPresentersCount(coPresentersRef.current.size + 1);
+        }
+
         if (msg.payload.currentSlideIndex !== undefined) {
           setCurrentSlideIndex(msg.payload.currentSlideIndex);
         }
@@ -563,7 +583,10 @@ export default function App() {
       }
 
       // 12. Tique do cronômetro
-      if (msg.type === 'TIMER_TICK' && role === 'participant' && msg.payload) {
+      if (msg.type === 'TIMER_TICK' && msg.payload) {
+        const isFromSelf = Boolean(msg.senderClientId && msg.senderClientId === realtimeService.getClientId());
+        if (isFromSelf) return;
+
         if (msg.payload.remaining !== undefined) {
           setTimerRemaining(msg.payload.remaining);
           setTimerActive(true);
@@ -571,13 +594,16 @@ export default function App() {
       }
 
       // 13. Cronômetro esgotado
-      if (msg.type === 'TIMER_EXPIRED' && role === 'participant') {
+      if (msg.type === 'TIMER_EXPIRED') {
+        const isFromSelf = Boolean(msg.senderClientId && msg.senderClientId === realtimeService.getClientId());
+        if (isFromSelf) return;
+
         setTimerRemaining(0);
         setTimerActive(false);
         setShowAnswers(true);
       }
 
-      // 14. Solicitação de estado completo (novo participante ou projetor conectou)
+      // 14. Solicitação de estado completo (novo participante, projetor ou co-apresentador conectou)
       if (msg.type === 'REQUEST_FULL_STATE' && role === 'presenter') {
         realtimeService.broadcast('SYNC_STATE', roomCode, 'presenter', {
           currentSlideIndex,
@@ -589,6 +615,19 @@ export default function App() {
           slides,
           participants
         });
+      }
+
+      // 15. Heartbeat de co-apresentador ativo na sala
+      if (msg.type === 'PRESENTER_HEARTBEAT') {
+        const isFromSelf = Boolean(msg.senderClientId && msg.senderClientId === realtimeService.getClientId());
+        if (!isFromSelf && msg.senderClientId) {
+          coPresentersRef.current.set(msg.senderClientId, Date.now());
+          const now = Date.now();
+          for (const [id, ts] of coPresentersRef.current.entries()) {
+            if (now - ts > 10000) coPresentersRef.current.delete(id);
+          }
+          setCoPresentersCount(coPresentersRef.current.size + 1);
+        }
       }
     });
 
@@ -1000,10 +1039,18 @@ export default function App() {
       winner = 'impostors';
     }
 
+    const eliminatedPerson = mostVotedId ? participants[mostVotedId] : null;
+    const eliminatedName = eliminatedPerson?.name || 'Jogador';
+    const eliminatedAvatar = eliminatedPerson?.avatar || '👤';
+    const eliminatedVotes = mostVotedId ? (voteCounts[mostVotedId] || 0) : 0;
+
     handleUpdateImpostorConfig({
       votingActive: false,
       revealState: 'round_elimination',
       lastEliminatedId: mostVotedId || undefined,
+      lastEliminatedName: eliminatedName,
+      lastEliminatedAvatar: eliminatedAvatar,
+      lastEliminatedVotes: eliminatedVotes,
       lastEliminatedWasImpostor: wasImpostor,
       eliminatedIds: newEliminatedIds,
       winner
@@ -1047,14 +1094,11 @@ export default function App() {
     const config = currentSlide.impostorConfig;
     const participantList = Object.values(participants);
 
-    // 1. Validar palavra secreta (se não definida, sorteia da categoria)
-    let wordToUse = config.secretWord?.trim();
+    // 1. Validar palavra secreta (deve ser selecionada, sorteada ou digitada previamente pelo apresentador)
+    const wordToUse = config.secretWord?.trim();
     if (!wordToUse) {
-      const catName = config.category || 'Personagens Bíblicos';
-      const cat = PRESET_WORD_CATEGORIES.find((c) => c.name === catName) || PRESET_WORD_CATEGORIES[0];
-      const customList = config.customWordList;
-      const wordsPool = customList && customList.length > 0 ? customList : cat.words;
-      wordToUse = wordsPool[Math.floor(Math.random() * wordsPool.length)] || 'Moisés';
+      console.warn('Jogo do Infiltrado não iniciado: palavra secreta não foi definida pelo apresentador.');
+      return;
     }
 
     // 2. Definir Agentes e Infiltrado caso ainda não tenham sido sorteados/selecionados
@@ -1799,6 +1843,7 @@ export default function App() {
               onChangePresenterPlayerName={handleChangePresenterPlayerName}
               presenterPlayerAvatar={presenterPlayerAvatar}
               onChangePresenterPlayerAvatar={handleChangePresenterPlayerAvatar}
+              coPresentersCount={coPresentersCount}
             />
           )
         )}

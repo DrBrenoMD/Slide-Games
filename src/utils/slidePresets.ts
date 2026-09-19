@@ -410,13 +410,13 @@ function populateTypeSpecificFields(slide: Slide, type: SlideType): Slide {
   if (type.startsWith('game_impostor')) {
     const isInvestigator = type === 'game_impostor_investigator';
     const cat = PRESET_WORD_CATEGORIES[0];
-    const secretWord = cat.words[Math.floor(Math.random() * cat.words.length)] || 'Moisés';
 
     const existingConfig = result.impostorConfig;
     const impostorConfig: ImpostorConfig = {
+      gameStarted: existingConfig?.gameStarted ?? false,
       mode: isInvestigator ? 'investigator' : 'classic',
       category: existingConfig?.category || cat.name,
-      secretWord: existingConfig?.secretWord || secretWord,
+      secretWord: existingConfig?.secretWord || '',
       customWordList: existingConfig?.customWordList || cat.words,
       numAgents: existingConfig?.numAgents || 4,
       numImpostors: existingConfig?.numImpostors || 1,

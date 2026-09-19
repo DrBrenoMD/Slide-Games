@@ -249,6 +249,9 @@ export interface ImpostorConfig {
   currentRound: number;
   eliminatedIds: string[];
   lastEliminatedId?: string | null;
+  lastEliminatedName?: string | null;
+  lastEliminatedAvatar?: string | null;
+  lastEliminatedVotes?: number | null;
   lastEliminatedWasImpostor?: boolean | null;
   changeWordOnNextRound?: boolean;
   votingActive: boolean;
