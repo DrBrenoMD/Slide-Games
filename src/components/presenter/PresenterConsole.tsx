@@ -26,6 +26,7 @@ import {
   Sparkles,
   Shuffle,
   RefreshCw,
+  Search,
   UserPlus,
   Lock,
   Unlock,
@@ -314,29 +315,43 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
 
   const handleAutoRaffleAgentsAndImpostor = () => {
     if (participants.length === 0) {
-      onAddSimulatedParticipants();
+      if (onAddSimulatedParticipants) {
+        onAddSimulatedParticipants();
+      }
       return;
     }
-    const targetAgents = impostorConfig.numAgents || Math.min(4, participants.length);
-    const targetImpostors = impostorConfig.numImpostors || calculateImpostorsFromProportion(
-      isInvestigatorMode ? targetAgents : participants.length,
-      impostorConfig.impostorRatioPreset || '1_per_4'
-    );
 
     if (isInvestigatorMode) {
+      const targetAgents = impostorConfig.numAgents || Math.min(4, Math.max(1, participants.length));
+      const targetImpostors = impostorConfig.numImpostors || calculateImpostorsFromProportion(
+        targetAgents,
+        impostorConfig.impostorRatioPreset || '1_per_4'
+      );
       const shuffled = [...participants].sort(() => 0.5 - Math.random());
       const agents = shuffled.slice(0, Math.min(targetAgents, shuffled.length)).map((p) => p.id);
       const shuffledAgents = [...agents].sort(() => 0.5 - Math.random());
-      const impostors = shuffledAgents.slice(0, Math.min(targetImpostors, agents.length));
+      const impostors = shuffledAgents.slice(0, Math.min(targetImpostors, Math.max(1, agents.length - 1)));
       onUpdateImpostorConfig({
+        mode: 'investigator',
+        numAgents: targetAgents,
+        numImpostors: impostors.length,
         agentParticipantIds: agents,
         impostorParticipantIds: impostors
       });
     } else {
+      // Modo Clássico: todos os participantes são jogadores (Agentes ou Infiltrados)
+      const targetImpostors = calculateImpostorsFromProportion(
+        participants.length,
+        impostorConfig.impostorRatioPreset || '1_per_4'
+      );
       const shuffled = [...participants].sort(() => 0.5 - Math.random());
-      const impostors = shuffled.slice(0, Math.min(targetImpostors, shuffled.length)).map((p) => p.id);
+      const impostors = shuffled.slice(0, Math.min(targetImpostors, Math.max(1, participants.length - 1))).map((p) => p.id);
+      const agents = participants.map((p) => p.id).filter((id) => !impostors.includes(id));
       onUpdateImpostorConfig({
-        agentParticipantIds: [],
+        mode: 'classic',
+        numAgents: participants.length,
+        numImpostors: impostors.length,
+        agentParticipantIds: agents,
         impostorParticipantIds: impostors
       });
     }
@@ -749,6 +764,80 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
                 </div>
               </div>
 
+              {/* SELETOR DE MODO NO CONSOLE DO APRESENTADOR */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-1.5 bg-slate-950 rounded-2xl border border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const targetImpostors = calculateImpostorsFromProportion(
+                      participants.length,
+                      impostorConfig.impostorRatioPreset || '1_per_4'
+                    );
+                    onUpdateImpostorConfig({
+                      mode: 'classic',
+                      numAgents: participants.length,
+                      numImpostors: targetImpostors
+                    });
+                  }}
+                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                    !isInvestigatorMode
+                      ? 'bg-rose-950/40 border-rose-500 text-white shadow ring-1 ring-rose-500/40'
+                      : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <div className="space-y-0.5">
+                    <div className="text-xs font-black text-rose-300 flex items-center gap-1.5 uppercase tracking-wider">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Modo Clássico (Todos Jogam)</span>
+                    </div>
+                    <p className="text-[11px] text-slate-300">
+                      Todos os {participants.length} participantes jogam como Agentes ou Infiltrados. Sem investigadores.
+                    </p>
+                  </div>
+                  {!isInvestigatorMode && (
+                    <span className="px-2 py-0.5 rounded-full bg-rose-500/30 text-rose-200 text-[10px] font-bold shrink-0 ml-2">
+                      Ativo
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const targetAgents = impostorConfig.numAgents || Math.min(4, Math.max(1, participants.length));
+                    const targetImpostors = calculateImpostorsFromProportion(
+                      targetAgents,
+                      impostorConfig.impostorRatioPreset || '1_per_4'
+                    );
+                    onUpdateImpostorConfig({
+                      mode: 'investigator',
+                      numAgents: targetAgents,
+                      numImpostors: targetImpostors
+                    });
+                  }}
+                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                    isInvestigatorMode
+                      ? 'bg-indigo-950/40 border-indigo-500 text-white shadow ring-1 ring-indigo-500/40'
+                      : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <div className="space-y-0.5">
+                    <div className="text-xs font-black text-indigo-300 flex items-center gap-1.5 uppercase tracking-wider">
+                      <Search className="w-3.5 h-3.5" />
+                      <span>Modo Investigador (Palco + Plateia)</span>
+                    </div>
+                    <p className="text-[11px] text-slate-300">
+                      {impostorConfig.numAgents || 4} Agentes no Palco. Demais participantes são Investigadores na plateia.
+                    </p>
+                  </div>
+                  {isInvestigatorMode && (
+                    <span className="px-2 py-0.5 rounded-full bg-indigo-500/30 text-indigo-200 text-[10px] font-bold shrink-0 ml-2">
+                      Ativo
+                    </span>
+                  )}
+                </button>
+              </div>
+
               {/* SE O APRESENTADOR ESTÁ JOGANDO (SEM ADMIN OVERRIDE) -> MOSTRA SEU CARD INDIVIDUAL CONFIDENCIAL */}
               {isPresenterPlaying && !adminOverridePeek ? (
                 <div className="p-5 rounded-2xl bg-gradient-to-br from-purple-950/60 via-slate-950 to-indigo-950/60 border-2 border-purple-500/50 shadow-2xl space-y-4">
@@ -996,7 +1085,15 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
                   {/* Resumo da Proporção */}
                   <div className="text-xs text-slate-300 pt-3 sm:pt-0">
                     <span className="text-slate-400 block text-[10px] font-bold uppercase">Distribuição:</span>
-                    <strong className="text-rose-400">{impostorParticipants.length || impostorConfig.numImpostors || 1} Infiltrado(s)</strong> / <strong className="text-indigo-300">{(isInvestigatorMode ? agentParticipants.length : participants.length) || 4} Jogadores</strong>
+                    {isInvestigatorMode ? (
+                      <div>
+                        <strong className="text-rose-400">{impostorParticipants.length || impostorConfig.numImpostors || 1} Infiltrado(s)</strong> em <strong className="text-indigo-300">{impostorConfig.numAgents || 4} no Palco</strong> • <strong className="text-slate-400">{Math.max(0, participants.length - (impostorConfig.numAgents || 4))} Investigadores</strong>
+                      </div>
+                    ) : (
+                      <div>
+                        <strong className="text-rose-400">{impostorParticipants.length || impostorConfig.numImpostors || 1} Infiltrado(s)</strong> / <strong className="text-emerald-300">{participants.length} Jogadores Ativos (Sem investigadores)</strong>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1012,95 +1109,108 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
                 </button>
               </div>
 
-              {/* RECURSO: BOTÃO DE REVELAR PALAVRA PARA OS INVESTIGADORES */}
-              <div className="p-4 rounded-2xl bg-indigo-950/40 border border-indigo-500/50 flex flex-wrap items-center justify-between gap-3">
-                <div className="space-y-0.5 max-w-xl">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-extrabold text-indigo-300 uppercase tracking-wider">
-                      Transmissão para a Plateia
-                    </span>
-                    {impostorConfig.revealWordToInvestigators && (
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold animate-pulse">
-                        ● Palavra Visível na Plateia
+              {/* RECURSO EXCLUSIVO DO MODO INVESTIGADOR: BOTÃO DE REVELAR PALAVRA PARA OS INVESTIGADORES */}
+              {isInvestigatorMode && (
+                <div className="p-4 rounded-2xl bg-indigo-950/40 border border-indigo-500/50 flex flex-wrap items-center justify-between gap-3">
+                  <div className="space-y-0.5 max-w-xl">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-extrabold text-indigo-300 uppercase tracking-wider">
+                        Transmissão para a Plateia
                       </span>
-                    )}
+                      {impostorConfig.revealWordToInvestigators && (
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold animate-pulse">
+                          ● Palavra Visível na Plateia
+                        </span>
+                      )}
+                    </div>
+                    <h5 className="text-sm font-bold text-white">
+                      Revelar Palavra Secreta para os Investigadores (Celular)
+                    </h5>
+                    <p className="text-xs text-slate-300">
+                      Ao ativar, todos os participantes na plateia (que não são agentes no palco) recebem a palavra secreta no seu celular para poderem analisar quem está blefando no palco!
+                    </p>
                   </div>
-                  <h5 className="text-sm font-bold text-white">
-                    Revelar Palavra Secreta para os Investigadores (Celular)
-                  </h5>
-                  <p className="text-xs text-slate-300">
-                    Ao ativar, todos os participantes na plateia (que não são agentes no palco) recebem a palavra secreta no seu celular para poderem analisar quem está blefando no palco!
-                  </p>
+
+                  <button
+                    type="button"
+                    onClick={handleToggleRevealWordToInvestigators}
+                    className={`px-5 py-3 rounded-2xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer shadow-lg active:scale-95 ${
+                      impostorConfig.revealWordToInvestigators
+                        ? 'bg-emerald-600 hover:bg-emerald-500 text-white ring-2 ring-emerald-400/50'
+                        : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+                    }`}
+                  >
+                    {impostorConfig.revealWordToInvestigators ? (
+                      <>
+                        <Unlock className="w-4 h-4 text-emerald-200" />
+                        <span>✓ Palavra Revelada aos Investigadores (Clique para Ocultar)</span>
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="w-4 h-4" />
+                        <span>Revelar Palavra para os Investigadores</span>
+                      </>
+                    )}
+                  </button>
                 </div>
+              )}
 
-                <button
-                  type="button"
-                  onClick={handleToggleRevealWordToInvestigators}
-                  className={`px-5 py-3 rounded-2xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer shadow-lg active:scale-95 ${
-                    impostorConfig.revealWordToInvestigators
-                      ? 'bg-emerald-600 hover:bg-emerald-500 text-white ring-2 ring-emerald-400/50'
-                      : 'bg-indigo-600 hover:bg-indigo-500 text-white'
-                  }`}
-                >
-                  {impostorConfig.revealWordToInvestigators ? (
-                    <>
-                      <Unlock className="w-4 h-4 text-emerald-200" />
-                      <span>✓ Palavra Revelada aos Investigadores (Clique para Ocultar)</span>
-                    </>
-                  ) : (
-                    <>
-                      <Lock className="w-4 h-4" />
-                      <span>Revelar Palavra para os Investigadores</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {/* Status dos Agentes no Palco (COM MÁSCARA NEUTRA SE APRESENTADOR ESTIVER JOGANDO) */}
+              {/* Status dos Jogadores (Modo Clássico vs Modo Investigador) */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
                     <Users className="w-4 h-4 text-indigo-400" />
-                    Agentes no Palco ({agentParticipants.length} selecionados)
+                    {isInvestigatorMode
+                      ? `Agentes no Palco (${agentParticipants.length} selecionados)`
+                      : `Jogadores na Partida (${participants.length} conectados • Sem Investigadores)`}
                   </span>
 
                   <button
                     onClick={() => setIsAgentModalOpen(true)}
                     className="text-xs text-indigo-400 hover:text-indigo-300 font-bold underline cursor-pointer"
                   >
-                    Abrir Seletor / Sorteio de Agentes
+                    Abrir Seletor / Configuração Avançada
                   </button>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {agentParticipants.map((p, idx) => {
+                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                  {(isInvestigatorMode ? agentParticipants : participants).map((p, idx) => {
                     const isImp = (impostorConfig.impostorParticipantIds || []).includes(p.id);
+                    const isEliminated = (impostorConfig.eliminatedIds || []).includes(p.id);
                     const votes = voteCounts[p.id] || 0;
-                    // Se o apresentador está jogando e não deu peek, esconde quem é infiltrado entre os outros
                     const showImpostorBadge = (!isPresenterPlaying || adminOverridePeek) && isImp;
 
                     return (
                       <div
                         key={p.id}
-                        className={`p-3.5 rounded-2xl border flex flex-col justify-between ${
-                          showImpostorBadge
+                        className={`p-3.5 rounded-2xl border flex flex-col justify-between transition-all ${
+                          isEliminated
+                            ? 'bg-slate-950/80 border-rose-900/50 opacity-60'
+                            : showImpostorBadge
                             ? 'bg-rose-950/40 border-rose-500/70 shadow-lg shadow-rose-950/30 ring-1 ring-rose-500/40'
                             : 'bg-slate-800/80 border-slate-700'
                         }`}
                       >
                         <div className="flex items-center justify-between text-[10px] font-bold mb-1">
-                          <span className="text-indigo-400">Agente #{idx + 1}</span>
+                          <span className="text-indigo-400">
+                            {isInvestigatorMode ? `Agente #${idx + 1}` : `Jogador #${idx + 1}`}
+                          </span>
                           {showImpostorBadge && (
                             <span className="text-rose-400 font-extrabold flex items-center gap-0.5">
                               <ShieldAlert className="w-3 h-3" />
                               Infiltrado
                             </span>
                           )}
+                          {isEliminated && (
+                            <span className="text-rose-400 font-bold">
+                              💀 Fora
+                            </span>
+                          )}
                         </div>
 
                         <div className="text-center my-2">
                           <span className="text-3xl block">{p.avatar}</span>
-                          <span className="text-sm font-bold text-white block truncate mt-1">
+                          <span className={`text-sm font-bold block truncate mt-1 ${isEliminated ? 'text-slate-400 line-through' : 'text-white'}`}>
                             {p.name}
                           </span>
                         </div>
@@ -1411,8 +1521,9 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
           onClose={() => setIsAgentModalOpen(false)}
           participants={participants}
           currentConfig={impostorConfig}
-          onSave={(agents, impostors, numAgents, numImpostors, selectionMethod, ratio, preset) => {
+          onSave={(agents, impostors, numAgents, numImpostors, selectionMethod, ratio, preset, mode) => {
             onUpdateImpostorConfig({
+              mode: mode || impostorConfig.mode || 'classic',
               agentParticipantIds: agents,
               impostorParticipantIds: impostors,
               numAgents: numAgents || impostorConfig.numAgents,
