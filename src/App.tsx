@@ -693,10 +693,15 @@ export default function App() {
     const currentSlide = slides[currentSlideIndex];
     if (!currentSlide || !currentSlide.impostorConfig) return;
 
-    // Calcular quem teve mais votos
+    const config = currentSlide.impostorConfig;
+    const eliminatedSoFar = config.eliminatedIds || [];
+
+    // Calcular quem teve mais votos entre os que não foram eliminados
     const voteCounts: Record<string, number> = {};
-    Object.values(currentSlide.impostorConfig.votes).forEach((suspectId) => {
-      voteCounts[suspectId] = (voteCounts[suspectId] || 0) + 1;
+    Object.values(config.votes || {}).forEach((suspectId) => {
+      if (!eliminatedSoFar.includes(suspectId)) {
+        voteCounts[suspectId] = (voteCounts[suspectId] || 0) + 1;
+      }
     });
 
     let mostVotedId: string | null = null;
@@ -708,35 +713,179 @@ export default function App() {
       }
     });
 
-    const isImpostorEliminated =
-      mostVotedId !== null && currentSlide.impostorConfig.impostorParticipantIds.includes(mostVotedId);
+    // Se ninguém votou ou houve empate sem votos, pega um agente ativo aleatório
+    if (!mostVotedId) {
+      const activeCandidates = (config.agentParticipantIds && config.agentParticipantIds.length > 0
+        ? config.agentParticipantIds
+        : Object.keys(participants)
+      ).filter(id => !eliminatedSoFar.includes(id));
+      if (activeCandidates.length > 0) {
+        mostVotedId = activeCandidates[0];
+      }
+    }
 
-    const winner: 'civilians' | 'impostors' = isImpostorEliminated ? 'civilians' : 'impostors';
+    const wasImpostor = mostVotedId !== null && (config.impostorParticipantIds || []).includes(mostVotedId);
+    const newEliminatedIds = mostVotedId ? [...eliminatedSoFar, mostVotedId] : eliminatedSoFar;
+
+    // Verificar se todos os infiltrados foram eliminados
+    const remainingImpostors = (config.impostorParticipantIds || []).filter(
+      (id) => !newEliminatedIds.includes(id)
+    );
+
+    const currentRound = config.currentRound || 1;
+    const roundsTotal = config.roundsTotal || 3;
+
+    let winner: 'civilians' | 'impostors' | 'agents' | undefined = undefined;
+
+    if (remainingImpostors.length === 0) {
+      // Agentes venceram! Todos os infiltrados foram eliminados.
+      winner = 'agents';
+    } else if (currentRound >= roundsTotal) {
+      // Acabaram as rodadas e ainda restam infiltrados -> Infiltrados venceram!
+      winner = 'impostors';
+    }
 
     handleUpdateImpostorConfig({
       votingActive: false,
-      revealState: 'revealed',
+      revealState: 'round_elimination',
+      lastEliminatedId: mostVotedId || undefined,
+      lastEliminatedWasImpostor: wasImpostor,
+      eliminatedIds: newEliminatedIds,
       winner
     });
   };
 
-  const handleResetImpostorGame = () => {
+  // Seguir para a próxima rodada
+  const handleAdvanceToNextRound = (changeWord: boolean = true) => {
     const currentSlide = slides[currentSlideIndex];
-    if (!currentSlide) return;
+    if (!currentSlide || !currentSlide.impostorConfig) return;
 
-    const catName = currentSlide.impostorConfig?.category || 'Personagens Bíblicos';
+    const config = currentSlide.impostorConfig;
+    const nextRound = (config.currentRound || 1) + 1;
+
+    let newWord = config.secretWord;
+    if (changeWord) {
+      const catName = config.category || 'Personagens Bíblicos';
+      const cat = PRESET_WORD_CATEGORIES.find((c) => c.name === catName) || PRESET_WORD_CATEGORIES[0];
+      const customList = config.customWordList;
+      const wordsPool = customList && customList.length > 0 ? customList : cat.words;
+      // Seleciona uma palavra diferente se possível
+      const availableWords = wordsPool.filter((w) => w !== config.secretWord);
+      const chosenPool = availableWords.length > 0 ? availableWords : wordsPool;
+      newWord = chosenPool[Math.floor(Math.random() * chosenPool.length)] || 'Moisés';
+    }
+
+    handleUpdateImpostorConfig({
+      currentRound: nextRound,
+      secretWord: newWord,
+      votingActive: false,
+      revealState: 'words_shown',
+      votes: {}
+    });
+  };
+
+  // Iniciar nova partida com todos os eliminados de volta
+  const handleStartNewMatch = () => {
+    const currentSlide = slides[currentSlideIndex];
+    if (!currentSlide || !currentSlide.impostorConfig) return;
+
+    const config = currentSlide.impostorConfig;
+    const participantList = Object.values(participants);
+
+    // Sortear nova palavra
+    const catName = config.category || 'Personagens Bíblicos';
     const cat = PRESET_WORD_CATEGORIES.find((c) => c.name === catName) || PRESET_WORD_CATEGORIES[0];
-    const customList = currentSlide.impostorConfig?.customWordList;
+    const customList = config.customWordList;
     const wordsPool = customList && customList.length > 0 ? customList : cat.words;
     const newWord = wordsPool[Math.floor(Math.random() * wordsPool.length)] || 'Moisés';
+
+    // Calcular proporção de infiltrados
+    const targetAgents = config.numAgents || Math.min(4, Math.max(1, participantList.length));
+    let ratio = config.impostorRatio || 0.25;
+    if (config.impostorRatioPreset === '1_per_2') ratio = 0.50;
+    else if (config.impostorRatioPreset === '1_per_3') ratio = 0.333;
+    else if (config.impostorRatioPreset === '1_per_4') ratio = 0.25;
+    else if (config.impostorRatioPreset === '1_per_5') ratio = 0.20;
+    else if (config.impostorRatioPreset === '1_per_6') ratio = 0.166;
+
+    let targetImpostors = Math.max(1, Math.round((config.mode === 'investigator' ? targetAgents : participantList.length) * ratio));
+    if (participantList.length > 1) {
+      targetImpostors = Math.min(targetImpostors, (config.mode === 'investigator' ? targetAgents : participantList.length) - 1);
+    }
+
+    let agentIds: string[] = [];
+    let impostorIds: string[] = [];
+
+    if (config.mode === 'investigator' && participantList.length > 0) {
+      const shuffled = [...participantList].sort(() => 0.5 - Math.random());
+      agentIds = shuffled.slice(0, Math.min(targetAgents, shuffled.length)).map((p) => p.id);
+      const shuffledAgents = [...agentIds].sort(() => 0.5 - Math.random());
+      impostorIds = shuffledAgents.slice(0, Math.min(targetImpostors, agentIds.length));
+    } else if (participantList.length > 0) {
+      const shuffled = [...participantList].sort(() => 0.5 - Math.random());
+      impostorIds = shuffled.slice(0, Math.min(targetImpostors, shuffled.length)).map((p) => p.id);
+    }
+
+    // Sincroniza participantes com as novas funções
+    setParticipants((prev) => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach((id) => {
+        updated[id] = {
+          ...updated[id],
+          isAgent: agentIds.includes(id),
+          isImpostor: impostorIds.includes(id)
+        };
+      });
+      return updated;
+    });
 
     handleUpdateImpostorConfig({
       secretWord: newWord,
       votingActive: false,
-      revealState: 'hidden',
+      revealState: 'words_shown',
       votes: {},
-      winner: undefined
+      currentRound: 1,
+      eliminatedIds: [],
+      lastEliminatedId: undefined,
+      lastEliminatedWasImpostor: undefined,
+      winner: undefined,
+      agentParticipantIds: agentIds,
+      impostorParticipantIds: impostorIds,
+      numImpostors: targetImpostors
     });
+  };
+
+  // Limpar seleção de infiltrados, agentes e palavra
+  const handleClearImpostorSelection = () => {
+    setParticipants((prev) => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach((id) => {
+        updated[id] = {
+          ...updated[id],
+          isAgent: false,
+          isImpostor: false
+        };
+      });
+      return updated;
+    });
+
+    handleUpdateImpostorConfig({
+      impostorParticipantIds: [],
+      agentParticipantIds: [],
+      secretWord: '',
+      votes: {},
+      eliminatedIds: [],
+      lastEliminatedId: undefined,
+      lastEliminatedWasImpostor: undefined,
+      revealState: 'hidden',
+      winner: undefined,
+      votingActive: false,
+      currentRound: 1
+    });
+  };
+
+  const handleResetImpostorGame = () => {
+    handleStartNewMatch();
   };
 
   const handleCopyPin = () => {
@@ -1100,6 +1249,8 @@ export default function App() {
             onStartImpostorVoting={handleStartImpostorVoting}
             onRevealImpostor={handleRevealImpostor}
             onResetImpostorGame={handleResetImpostorGame}
+            onAdvanceToNextRound={handleAdvanceToNextRound}
+            onStartNewMatch={handleStartNewMatch}
           />
         )}
 
@@ -1165,6 +1316,9 @@ export default function App() {
               onStartImpostorVoting={handleStartImpostorVoting}
               onRevealImpostor={handleRevealImpostor}
               onResetImpostorGame={handleResetImpostorGame}
+              onAdvanceToNextRound={handleAdvanceToNextRound}
+              onStartNewMatch={handleStartNewMatch}
+              onClearImpostorSelection={handleClearImpostorSelection}
               onOpenPresentationScreen={() => setAppView('presentation')}
               onOpenSettingsScreen={() => setAppView('settings')}
             />

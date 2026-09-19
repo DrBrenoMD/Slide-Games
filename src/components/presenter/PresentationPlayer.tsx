@@ -45,6 +45,8 @@ interface PresentationPlayerProps {
   onStartImpostorVoting: () => void;
   onRevealImpostor: () => void;
   onResetImpostorGame: () => void;
+  onAdvanceToNextRound?: (changeWord?: boolean) => void;
+  onStartNewMatch?: () => void;
 }
 
 export const PresentationPlayer: React.FC<PresentationPlayerProps> = ({
@@ -76,7 +78,9 @@ export const PresentationPlayer: React.FC<PresentationPlayerProps> = ({
   onUpdateImpostorConfig,
   onStartImpostorVoting,
   onRevealImpostor,
-  onResetImpostorGame
+  onResetImpostorGame,
+  onAdvanceToNextRound,
+  onStartNewMatch
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const currentSlide = slides[currentSlideIndex] || slides[0];
@@ -185,7 +189,10 @@ export const PresentationPlayer: React.FC<PresentationPlayerProps> = ({
             onStartVoting={onStartImpostorVoting}
             onRevealImpostor={onRevealImpostor}
             onResetGame={onResetImpostorGame}
+            onAdvanceToNextRound={onAdvanceToNextRound}
+            onStartNewMatch={onStartNewMatch}
             onAddSimulatedParticipants={onAddSimulatedParticipants}
+            isPresenter={!isProjectorOnly}
           />
         );
 

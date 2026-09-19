@@ -1,6 +1,6 @@
 import React from 'react';
 import { Slide, Participant, ImpostorConfig } from '../../types';
-import { ImpostorStageReveal } from '../motion/ImpostorAlert';
+import { ImpostorStageReveal, ImpostorRoundEliminationReveal } from '../motion/ImpostorAlert';
 import {
   ShieldAlert,
   Users,
@@ -10,7 +10,8 @@ import {
   Tv,
   CheckCircle,
   HelpCircle,
-  Clock
+  Clock,
+  Skull
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -21,13 +22,19 @@ interface ImpostorSlideRendererProps {
   onStartVoting: () => void;
   onRevealImpostor: () => void;
   onResetGame: () => void;
+  onAdvanceToNextRound?: (changeWord?: boolean) => void;
+  onStartNewMatch?: () => void;
   onAddSimulatedParticipants?: () => void;
+  isPresenter?: boolean;
 }
 
 export const ImpostorSlideRenderer: React.FC<ImpostorSlideRendererProps> = ({
   slide,
   participants,
-  onResetGame
+  onResetGame,
+  onAdvanceToNextRound,
+  onStartNewMatch,
+  isPresenter = false
 }) => {
   const config = slide.impostorConfig || {
     mode: 'classic',
@@ -35,6 +42,8 @@ export const ImpostorSlideRenderer: React.FC<ImpostorSlideRendererProps> = ({
     secretWord: 'Moisés',
     numAgents: 4,
     numImpostors: 1,
+    impostorRatio: 0.25,
+    impostorRatioPreset: '1_per_4',
     selectionMethod: 'random',
     revealWordToInvestigators: false,
     impostorParticipantIds: [],
@@ -49,6 +58,7 @@ export const ImpostorSlideRenderer: React.FC<ImpostorSlideRendererProps> = ({
   };
 
   const isInvestigatorMode = config.mode === 'investigator';
+  const eliminatedIds = config.eliminatedIds || [];
 
   // Participantes que são agentes no palco (NUNCA REVELAR QUEM É O INFILTRADO NO TELÃO)
   const agentParticipants = participants.filter((p) =>
@@ -69,7 +79,45 @@ export const ImpostorSlideRenderer: React.FC<ImpostorSlideRendererProps> = ({
   // Votos computados (totais para contagem visual)
   const totalVotesCast = Object.keys(config.votes || {}).length;
 
-  // Se já está na fase de revelação com animação dramática (após encerramento pelo apresentador)
+  const totalImpostorsCount = (config.impostorParticipantIds || []).length;
+  const remainingImpostorsCount = (config.impostorParticipantIds || []).filter(
+    (id) => !eliminatedIds.includes(id)
+  ).length;
+
+  // Se está na fase de revelação da eliminação da rodada
+  if (config.revealState === 'round_elimination') {
+    const eliminatedParticipant = participants.find((p) => p.id === config.lastEliminatedId);
+    
+    // Contar votos recebidos pelo eliminado
+    let votesReceived = 0;
+    if (config.lastEliminatedId && config.votes) {
+      Object.values(config.votes).forEach((targetId) => {
+        if (targetId === config.lastEliminatedId) votesReceived++;
+      });
+    }
+
+    return (
+      <div className="w-full h-full flex flex-col justify-between p-4 sm:p-6 max-w-5xl mx-auto">
+        <ImpostorRoundEliminationReveal
+          eliminatedName={eliminatedParticipant?.name || 'Jogador Eliminado'}
+          eliminatedAvatar={eliminatedParticipant?.avatar || '👤'}
+          votesReceived={votesReceived}
+          wasImpostor={Boolean(config.lastEliminatedWasImpostor)}
+          roundNumber={config.currentRound || 1}
+          roundsTotal={config.roundsTotal || 3}
+          remainingImpostorsCount={remainingImpostorsCount}
+          totalImpostorsCount={totalImpostorsCount}
+          isGameOver={config.winner !== undefined}
+          winner={config.winner}
+          onNextRound={onAdvanceToNextRound ? () => onAdvanceToNextRound(true) : undefined}
+          onNewMatch={onStartNewMatch || onResetGame}
+          isPresenter={isPresenter}
+        />
+      </div>
+    );
+  }
+
+  // Se já está na fase de revelação final com animação dramática de vitória
   if (config.revealState === 'revealed') {
     return (
       <div className="w-full h-full flex flex-col justify-between p-6 max-w-5xl mx-auto">
@@ -85,7 +133,7 @@ export const ImpostorSlideRenderer: React.FC<ImpostorSlideRendererProps> = ({
             className="px-6 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-sm font-bold flex items-center gap-2 cursor-pointer shadow-lg"
           >
             <RefreshCw className="w-4 h-4" />
-            Jogar Nova Rodada
+            Iniciar Nova Partida
           </button>
         </div>
       </div>
@@ -110,23 +158,21 @@ export const ImpostorSlideRenderer: React.FC<ImpostorSlideRendererProps> = ({
         <div className="flex items-center gap-3">
           <div className="px-4 py-2 rounded-2xl bg-indigo-950/60 border border-indigo-500/40 text-center shadow-lg">
             <span className="text-[10px] uppercase tracking-wider text-indigo-300 font-bold block">
-              Tema da Rodada
+              Tema da Partida
             </span>
             <span className="text-sm sm:text-base font-black text-white">
               {config.category}
             </span>
           </div>
 
-          {isInvestigatorMode && (
-            <div className="px-4 py-2 rounded-2xl bg-slate-900 border border-slate-700 text-center font-mono shadow-lg">
-              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold block">
-                Rodada de Pistas
-              </span>
-              <span className="text-sm sm:text-base font-black text-amber-400">
-                {config.currentRound || 1} de {config.roundsTotal || 3}
-              </span>
-            </div>
-          )}
+          <div className="px-4 py-2 rounded-2xl bg-slate-900 border border-slate-700 text-center font-mono shadow-lg">
+            <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold block">
+              Rodada
+            </span>
+            <span className="text-sm sm:text-base font-black text-amber-400">
+              {config.currentRound || 1} de {config.roundsTotal || 3}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -141,13 +187,13 @@ export const ImpostorSlideRenderer: React.FC<ImpostorSlideRendererProps> = ({
             <div>
               <h3 className="text-base sm:text-lg font-bold text-white">
                 {config.votingActive
-                  ? 'Votação Aberta nos Celulares!'
-                  : `Rodada ${config.currentRound || 1} • Fase de Pistas`}
+                  ? `Votação Aberta nos Celulares! (Rodada ${config.currentRound || 1} de ${config.roundsTotal || 3})`
+                  : `Rodada ${config.currentRound || 1} de ${config.roundsTotal || 3} • Fase de Pistas`}
               </h3>
               <p className="text-xs sm:text-sm text-slate-300">
                 {config.votingActive
-                  ? 'Abra seu celular e vote em quem você suspeita que seja o Infiltrado!'
-                  : 'Cada agente no palco deve falar apenas 1 palavra ligada ao tema. Prestem atenção nas reações!'}
+                  ? 'Abra seu celular e vote em quem você suspeita que seja o Infiltrado para eliminá-lo!'
+                  : 'Cada participante deve falar apenas 1 palavra ligada ao tema. Prestem atenção em quem está blefando!'}
               </p>
             </div>
           </div>
@@ -171,7 +217,7 @@ export const ImpostorSlideRenderer: React.FC<ImpostorSlideRendererProps> = ({
                 Agentes no Palco ({agentParticipants.length} Jogadores)
               </span>
               <span className="text-xs text-slate-400">
-                Um deles é o Infiltrado e está blefando!
+                O(s) Infiltrado(s) estão no palco e não sabem a palavra secreta!
               </span>
             </div>
 
@@ -184,30 +230,55 @@ export const ImpostorSlideRenderer: React.FC<ImpostorSlideRendererProps> = ({
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                {agentParticipants.map((p, idx) => (
-                  <motion.div
-                    key={p.id}
-                    whileHover={{ scale: 1.02 }}
-                    className="p-5 rounded-3xl bg-slate-900/80 border border-slate-700/80 shadow-2xl flex flex-col justify-between items-center text-center space-y-3"
-                  >
-                    <span className="px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[11px] font-bold uppercase tracking-wider">
-                      Agente #{idx + 1}
-                    </span>
+                {agentParticipants.map((p, idx) => {
+                  const isEliminated = eliminatedIds.includes(p.id);
+                  return (
+                    <motion.div
+                      key={p.id}
+                      whileHover={{ scale: isEliminated ? 1 : 1.02 }}
+                      className={`p-5 rounded-3xl border shadow-2xl flex flex-col justify-between items-center text-center space-y-3 transition-all ${
+                        isEliminated
+                          ? 'bg-slate-950/80 border-rose-900/60 opacity-60 grayscale-[40%]'
+                          : 'bg-slate-900/80 border-slate-700/80'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        {isEliminated ? (
+                          <span className="px-3 py-1 rounded-full bg-rose-500/30 text-rose-300 border border-rose-500/50 text-[11px] font-black uppercase tracking-wider flex items-center gap-1">
+                            <Skull className="w-3 h-3" />
+                            <span>Eliminado</span>
+                          </span>
+                        ) : (
+                          <span className="px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[11px] font-bold uppercase tracking-wider">
+                            Agente #{idx + 1}
+                          </span>
+                        )}
+                      </div>
 
-                    <div className="my-2">
-                      <span className="text-5xl block animate-bounce" style={{ animationDuration: `${2 + idx * 0.3}s` }}>
-                        {p.avatar}
-                      </span>
-                      <h4 className="text-base font-extrabold text-white mt-2 truncate max-w-[160px]">
-                        {p.name}
-                      </h4>
-                    </div>
+                      <div className="my-2">
+                        <span
+                          className={`text-5xl block ${!isEliminated ? 'animate-bounce' : ''}`}
+                          style={{ animationDuration: `${2 + idx * 0.3}s` }}
+                        >
+                          {p.avatar}
+                        </span>
+                        <h4 className={`text-base font-extrabold mt-2 truncate max-w-[160px] ${isEliminated ? 'text-slate-400 line-through' : 'text-white'}`}>
+                          {p.name}
+                        </h4>
+                      </div>
 
-                    <div className="w-full pt-2 border-t border-slate-800 text-[11px] text-slate-400">
-                      {config.votingActive ? 'Suspeito Elegível' : 'Aguardando Pista'}
-                    </div>
-                  </motion.div>
-                ))}
+                      <div className="w-full pt-2 border-t border-slate-800 text-[11px] text-slate-400">
+                        {isEliminated ? (
+                          <span className="text-rose-400 font-bold">Fora da Partida</span>
+                        ) : config.votingActive ? (
+                          'Suspeito Elegível'
+                        ) : (
+                          'Aguardando Pista'
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })}
               </div>
             )}
 
@@ -215,18 +286,26 @@ export const ImpostorSlideRenderer: React.FC<ImpostorSlideRendererProps> = ({
             <div className="pt-4 border-t border-slate-800">
               <div className="flex items-center justify-between mb-2 text-xs text-slate-400">
                 <span className="font-semibold">Investigadores na Plateia ({investigatorParticipants.length})</span>
-                <span>Votarão no celular para desmascarar o Infiltrado</span>
+                <span>Votarão no celular para eliminar o Infiltrado</span>
               </div>
               <div className="flex flex-wrap gap-2 max-h-24 overflow-y-auto">
-                {investigatorParticipants.map((p) => (
-                  <div
-                    key={p.id}
-                    className="px-3 py-1 rounded-xl bg-slate-800/70 border border-slate-700/60 text-slate-300 text-xs flex items-center gap-1.5"
-                  >
-                    <span>{p.avatar}</span>
-                    <span className="truncate max-w-[100px]">{p.name}</span>
-                  </div>
-                ))}
+                {investigatorParticipants.map((p) => {
+                  const isEliminated = eliminatedIds.includes(p.id);
+                  return (
+                    <div
+                      key={p.id}
+                      className={`px-3 py-1 rounded-xl border text-xs flex items-center gap-1.5 ${
+                        isEliminated
+                          ? 'bg-rose-950/40 border-rose-800/40 text-rose-300 line-through opacity-70'
+                          : 'bg-slate-800/70 border-slate-700/60 text-slate-300'
+                      }`}
+                    >
+                      <span>{p.avatar}</span>
+                      <span className="truncate max-w-[100px]">{p.name}</span>
+                      {isEliminated && <span className="text-[10px] text-rose-400 font-bold">💀</span>}
+                    </div>
+                  );
+                })}
                 {investigatorParticipants.length === 0 && (
                   <span className="text-xs text-slate-500">
                     Nenhum outro participante conectado na plateia.
@@ -244,22 +323,32 @@ export const ImpostorSlideRenderer: React.FC<ImpostorSlideRendererProps> = ({
                 Participantes Conectados ({participants.length})
               </span>
               <span className="text-xs text-slate-400">
-                {config.votingActive ? 'Votação em Andamento...' : 'Fase de Pistas'}
+                {config.votingActive ? 'Votação para Eliminação em Andamento...' : 'Fase de Pistas'}
               </span>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3 max-h-80 overflow-y-auto pr-1">
-              {participants.map((p) => (
-                <div
-                  key={p.id}
-                  className="p-3 rounded-2xl bg-slate-800/80 border border-slate-700 flex flex-col items-center text-center shadow"
-                >
-                  <span className="text-3xl">{p.avatar}</span>
-                  <span className="text-xs font-bold text-white truncate max-w-full mt-1">
-                    {p.name}
-                  </span>
-                </div>
-              ))}
+              {participants.map((p) => {
+                const isEliminated = eliminatedIds.includes(p.id);
+                return (
+                  <div
+                    key={p.id}
+                    className={`p-3 rounded-2xl border flex flex-col items-center text-center shadow transition-all ${
+                      isEliminated
+                        ? 'bg-slate-950/80 border-rose-900/60 opacity-60'
+                        : 'bg-slate-800/80 border-slate-700'
+                    }`}
+                  >
+                    <span className="text-3xl">{p.avatar}</span>
+                    <span className={`text-xs font-bold truncate max-w-full mt-1 ${isEliminated ? 'text-slate-400 line-through' : 'text-white'}`}>
+                      {p.name}
+                    </span>
+                    {isEliminated && (
+                      <span className="text-[10px] text-rose-400 font-bold mt-0.5">💀 Eliminado</span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -268,7 +357,7 @@ export const ImpostorSlideRenderer: React.FC<ImpostorSlideRendererProps> = ({
       {/* Rodapé Informativo do Telão */}
       <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
         <div className="flex items-center gap-2">
-          <span>🎮 Regra: Diga uma palavra que se conecte ao tema sem entregar a palavra ao Infiltrado!</span>
+          <span>🎮 Regra: Descubra e elimine os Infiltrados antes que as rodadas acabem!</span>
         </div>
         <div className="font-mono text-[11px] text-slate-500">
           Telão Público

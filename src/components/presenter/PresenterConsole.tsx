@@ -61,6 +61,9 @@ interface PresenterConsoleProps {
   onStartImpostorVoting: () => void;
   onRevealImpostor: () => void;
   onResetImpostorGame: () => void;
+  onAdvanceToNextRound?: (changeWord?: boolean) => void;
+  onStartNewMatch?: () => void;
+  onClearImpostorSelection?: () => void;
   onOpenPresentationScreen: () => void;
   onOpenSettingsScreen: () => void;
   onOpenProjectorWindow?: () => void;
@@ -90,6 +93,9 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
   onStartImpostorVoting,
   onRevealImpostor,
   onResetImpostorGame,
+  onAdvanceToNextRound,
+  onStartNewMatch,
+  onClearImpostorSelection,
   onOpenPresentationScreen,
   onOpenSettingsScreen,
   onOpenProjectorWindow
@@ -100,6 +106,7 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
   const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
   const [cloudFeedback, setCloudFeedback] = useState<string | null>(null);
   const [isSavingCloud, setIsSavingCloud] = useState(false);
+  const [changeWordOnNextRound, setChangeWordOnNextRound] = useState(true);
 
   const handleSaveToCloud = async () => {
     if (!user) {
@@ -192,14 +199,29 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
     onUpdateImpostorConfig({ secretWord: newWord });
   };
 
-  // Sortear agentes e infiltrados automaticamente de forma rápida
+  // Sortear agentes e infiltrados automaticamente de forma rápida baseando-se na proporção
+  const calculateImpostorsFromProportion = (total: number, preset?: string): number => {
+    if (total <= 1) return 1;
+    let ratio = 0.25;
+    if (preset === '1_per_2') ratio = 0.50;
+    else if (preset === '1_per_3') ratio = 0.333;
+    else if (preset === '1_per_4') ratio = 0.25;
+    else if (preset === '1_per_5') ratio = 0.20;
+    else if (preset === '1_per_6') ratio = 0.166;
+    const calculated = Math.round(total * ratio);
+    return Math.max(1, Math.min(calculated, Math.max(1, total - 1)));
+  };
+
   const handleAutoRaffleAgentsAndImpostor = () => {
     if (participants.length === 0) {
       onAddSimulatedParticipants();
       return;
     }
-    const targetAgents = impostorConfig.numAgents || 4;
-    const targetImpostors = impostorConfig.numImpostors || 1;
+    const targetAgents = impostorConfig.numAgents || Math.min(4, participants.length);
+    const targetImpostors = impostorConfig.numImpostors || calculateImpostorsFromProportion(
+      isInvestigatorMode ? targetAgents : participants.length,
+      impostorConfig.impostorRatioPreset || '1_per_4'
+    );
 
     if (isInvestigatorMode) {
       const shuffled = [...participants].sort(() => 0.5 - Math.random());
@@ -216,6 +238,25 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
       onUpdateImpostorConfig({
         agentParticipantIds: [],
         impostorParticipantIds: impostors
+      });
+    }
+  };
+
+  const handleClearSelection = () => {
+    if (onClearImpostorSelection) {
+      onClearImpostorSelection();
+    } else {
+      onUpdateImpostorConfig({
+        impostorParticipantIds: [],
+        agentParticipantIds: [],
+        secretWord: '',
+        votes: {},
+        eliminatedIds: [],
+        lastEliminatedId: undefined,
+        lastEliminatedWasImpostor: undefined,
+        revealState: 'hidden',
+        winner: undefined,
+        votingActive: false
       });
     }
   };
@@ -413,7 +454,7 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
                       Palavra Secreta (Agentes e Civis):
                     </span>
                     <span className="text-2xl font-black text-emerald-400 font-mono tracking-wide">
-                      {hideSecrets ? '••••••••' : impostorConfig.secretWord}
+                      {hideSecrets ? '••••••••' : impostorConfig.secretWord || '(Nenhuma selecionada)'}
                     </span>
                   </div>
                   <button
@@ -426,51 +467,128 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
                   </button>
                 </div>
 
-                  {/* Infiltrado Sorteado */}
-                  <div className="p-4 rounded-2xl bg-rose-950/30 border border-rose-500/50 flex flex-wrap items-center justify-between gap-3">
-                    <div className="space-y-1">
-                      <span className="text-xs font-bold text-rose-300 block">
-                        🚨 Infiltrado Sorteado (Não sabe a palavra):
-                      </span>
-                      <div className="flex items-center gap-2">
-                        {impostorParticipants.length > 0 ? (
-                          impostorParticipants.map((p) => (
-                            <div key={p.id} className="flex items-center gap-2">
-                              <span className="text-2xl">{p.avatar}</span>
-                              <span className="text-lg font-black text-rose-200">
-                                {hideSecrets ? '••••••••' : p.name}
-                              </span>
-                            </div>
-                          ))
-                        ) : (
-                          <span className="text-xs text-amber-300 font-bold">
-                            Nenhum infiltrado definido ainda nesta rodada.
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {impostorParticipants.length === 0 && (
-                        <button
-                          type="button"
-                          onClick={handleAutoRaffleAgentsAndImpostor}
-                          className="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer shadow animate-bounce"
-                          title="Sortear automaticamente os agentes e infiltrados entre os participantes"
-                        >
-                          <Shuffle className="w-3.5 h-3.5" />
-                          <span>Sortear Agora</span>
-                        </button>
+                {/* Infiltrado Sorteado */}
+                <div className="p-4 rounded-2xl bg-rose-950/30 border border-rose-500/50 flex flex-wrap items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <span className="text-xs font-bold text-rose-300 block">
+                      🚨 Infiltrado Sorteado (Não sabe a palavra):
+                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {impostorParticipants.length > 0 ? (
+                        impostorParticipants.map((p) => (
+                          <div key={p.id} className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-rose-900/40 border border-rose-500/40">
+                            <span className="text-xl">{p.avatar}</span>
+                            <span className="text-sm font-black text-rose-200">
+                              {hideSecrets ? '••••••••' : p.name}
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        <span className="text-xs text-amber-300 font-bold">
+                          Nenhum infiltrado definido ainda nesta rodada.
+                        </span>
                       )}
-                      <button
-                        onClick={() => setIsAgentModalOpen(true)}
-                        className="px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold flex items-center gap-1 cursor-pointer shadow"
-                      >
-                        <Shuffle className="w-3.5 h-3.5" />
-                        <span>{impostorParticipants.length > 0 ? 'Mudar / Ajustar' : 'Selecionar'}</span>
-                      </button>
                     </div>
                   </div>
+
+                  <div className="flex items-center gap-2">
+                    {impostorParticipants.length === 0 && (
+                      <button
+                        type="button"
+                        onClick={handleAutoRaffleAgentsAndImpostor}
+                        className="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer shadow animate-bounce"
+                        title="Sortear automaticamente os agentes e infiltrados entre os participantes"
+                      >
+                        <Shuffle className="w-3.5 h-3.5" />
+                        <span>Sortear</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setIsAgentModalOpen(true)}
+                      className="px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold flex items-center gap-1 cursor-pointer shadow"
+                    >
+                      <Shuffle className="w-3.5 h-3.5" />
+                      <span>{impostorParticipants.length > 0 ? 'Mudar' : 'Selecionar'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Controles de Proporção de Infiltrados & Limite de Rodadas */}
+              <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 flex flex-wrap items-center justify-between gap-4">
+                <div className="flex flex-wrap items-center gap-4">
+                  {/* Proporção de Infiltrados */}
+                  <div>
+                    <label className="text-[10px] font-extrabold uppercase tracking-wider text-rose-400 block mb-1">
+                      Proporção de Infiltrados:
+                    </label>
+                    <select
+                      value={impostorConfig.impostorRatioPreset || '1_per_4'}
+                      onChange={(e) => {
+                        const preset = e.target.value as any;
+                        const numImp = calculateImpostorsFromProportion(
+                          isInvestigatorMode ? (impostorConfig.numAgents || 4) : participants.length,
+                          preset
+                        );
+                        let ratio = 0.25;
+                        if (preset === '1_per_2') ratio = 0.5;
+                        else if (preset === '1_per_3') ratio = 0.333;
+                        else if (preset === '1_per_4') ratio = 0.25;
+                        else if (preset === '1_per_5') ratio = 0.20;
+                        else if (preset === '1_per_6') ratio = 0.166;
+
+                        onUpdateImpostorConfig({
+                          impostorRatioPreset: preset,
+                          impostorRatio: ratio,
+                          numImpostors: numImp
+                        });
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-xs font-bold text-white focus:outline-none focus:border-rose-500 cursor-pointer"
+                    >
+                      <option value="1_per_4">1 a cada 4 jogadores (25%)</option>
+                      <option value="1_per_5">1 a cada 5 jogadores (20%)</option>
+                      <option value="1_per_3">1 a cada 3 jogadores (33%)</option>
+                      <option value="1_per_2">1 a cada 2 jogadores (50%)</option>
+                      <option value="1_per_6">1 a cada 6 jogadores (16%)</option>
+                    </select>
+                  </div>
+
+                  {/* Limite de Rodadas para Encontrar Infiltrados */}
+                  <div>
+                    <label className="text-[10px] font-extrabold uppercase tracking-wider text-amber-400 block mb-1">
+                      Limite de Rodadas:
+                    </label>
+                    <select
+                      value={impostorConfig.roundsTotal || 3}
+                      onChange={(e) => onUpdateImpostorConfig({ roundsTotal: Number(e.target.value) })}
+                      className="px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-xs font-bold text-white focus:outline-none focus:border-amber-500 cursor-pointer"
+                    >
+                      <option value={1}>1 Rodada</option>
+                      <option value={2}>2 Rodadas</option>
+                      <option value={3}>3 Rodadas (Padrão)</option>
+                      <option value={4}>4 Rodadas</option>
+                      <option value={5}>5 Rodadas</option>
+                      <option value={6}>6 Rodadas</option>
+                    </select>
+                  </div>
+
+                  {/* Resumo da Proporção */}
+                  <div className="text-xs text-slate-300 pt-3 sm:pt-0">
+                    <span className="text-slate-400 block text-[10px] font-bold uppercase">Distribuição:</span>
+                    <strong className="text-rose-400">{impostorParticipants.length || impostorConfig.numImpostors || 1} Infiltrado(s)</strong> / <strong className="text-indigo-300">{(isInvestigatorMode ? agentParticipants.length : participants.length) || 4} Jogadores</strong>
+                  </div>
+                </div>
+
+                {/* Botão de Remover Seleção dos Infiltrados e da Palavra */}
+                <button
+                  type="button"
+                  onClick={handleClearSelection}
+                  className="px-3.5 py-2 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-500/40 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
+                  title="Remover a palavra e a seleção de quem é infiltrado ou agente"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Limpar Seleção (Infiltrados & Palavra)</span>
+                </button>
               </div>
 
               {/* RECURSO SOLICITADO: BOTÃO DE REVELAR PALAVRA PARA OS INVESTIGADORES */}
@@ -584,7 +702,9 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
                     Controle de Jogo ao Vivo
                   </span>
                   <h4 className="text-lg font-bold text-white">
-                    {impostorConfig.votingActive
+                    {impostorConfig.revealState === 'round_elimination'
+                      ? 'Resultado da Eliminação da Rodada'
+                      : impostorConfig.votingActive
                       ? 'Votação em Andamento nos Celulares'
                       : `Fase de Pistas: Rodada ${impostorConfig.currentRound || 1} de ${impostorConfig.roundsTotal || 3}`}
                   </h4>
@@ -597,50 +717,119 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
                 </div>
               </div>
 
-              {/* Botões de Ação Dinâmica */}
-              <div className="flex flex-wrap items-center gap-3">
-                {!impostorConfig.votingActive ? (
-                  <>
-                    <button
-                      onClick={handleAdvanceRound}
-                      className="px-5 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg cursor-pointer flex items-center gap-2 transition-all active:scale-95"
-                    >
-                      <Sparkles className="w-4 h-4" />
-                      <span>
-                        {(impostorConfig.currentRound || 1) < (impostorConfig.roundsTotal || 3)
-                          ? `Avançar para Rodada ${(impostorConfig.currentRound || 1) + 1} de Pistas`
-                          : 'Iniciar Votação nos Celulares'}
-                      </span>
-                    </button>
+              {/* Se estamos em round_elimination, exibir controles de avanço de rodada ou nova partida */}
+              {impostorConfig.revealState === 'round_elimination' && (
+                <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <span className="text-xs font-bold text-slate-300">
+                      Eliminado na Rodada: <strong className="text-rose-400 font-extrabold">{participants.find(p => p.id === impostorConfig.lastEliminatedId)?.name || 'Participante'}</strong> ({impostorConfig.lastEliminatedWasImpostor ? '🚨 Era Infiltrado' : '🛡️ Era Agente Inocente'})
+                    </span>
+                    <span className="text-xs font-mono text-amber-400 font-bold">
+                      Rodada {impostorConfig.currentRound || 1} de {impostorConfig.roundsTotal || 3}
+                    </span>
+                  </div>
+
+                  {/* Opção do Apresentador: Mudar a palavra secreta na próxima rodada */}
+                  {!impostorConfig.winner && (impostorConfig.currentRound || 1) < (impostorConfig.roundsTotal || 3) && (
+                    <label className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer text-xs font-bold text-slate-200">
+                      <input
+                        type="checkbox"
+                        checked={changeWordOnNextRound}
+                        onChange={(e) => setChangeWordOnNextRound(e.target.checked)}
+                        className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                      />
+                      <span>Sortear NOVA palavra secreta para a próxima rodada</span>
+                    </label>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    {!impostorConfig.winner && (impostorConfig.currentRound || 1) < (impostorConfig.roundsTotal || 3) ? (
+                      <button
+                        onClick={() => {
+                          if (onAdvanceToNextRound) {
+                            onAdvanceToNextRound(changeWordOnNextRound);
+                          }
+                        }}
+                        className="px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs shadow-lg cursor-pointer flex items-center gap-2 transition-all active:scale-95"
+                      >
+                        <Sparkles className="w-4 h-4" />
+                        <span>Seguir para a Próxima Rodada (Rodada {(impostorConfig.currentRound || 1) + 1})</span>
+                      </button>
+                    ) : (
+                      <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-500/40 text-xs font-bold text-amber-300">
+                        {impostorConfig.winner === 'impostors' ? '🚨 Vitória dos Infiltrados! As rodadas acabaram ou os agentes foram eliminados.' : '🛡️ Vitória dos Agentes! Todos os infiltrados foram eliminados.'}
+                      </div>
+                    )}
 
                     <button
-                      onClick={onStartImpostorVoting}
-                      className="px-5 py-3 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg cursor-pointer flex items-center gap-2 transition-all active:scale-95"
+                      onClick={() => {
+                        if (onStartNewMatch) {
+                          onStartNewMatch();
+                        } else {
+                          onResetImpostorGame();
+                        }
+                      }}
+                      className="px-5 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-lg cursor-pointer flex items-center gap-2 transition-all active:scale-95"
                     >
-                      <Vote className="w-4 h-4" />
-                      <span>Abrir Votação Imediata</span>
+                      <RefreshCw className="w-4 h-4" />
+                      <span>Iniciar Nova Partida (Resetar Todos Eliminados)</span>
                     </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      onClick={onRevealImpostor}
-                      className="px-6 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-lg cursor-pointer flex items-center gap-2 transition-all active:scale-95 animate-pulse"
-                    >
-                      <CheckCircle className="w-4 h-4" />
-                      <span>Encerrar Votação e Revelar Infiltrado no Telão!</span>
-                    </button>
-                  </>
-                )}
+                  </div>
+                </div>
+              )}
 
-                <button
-                  onClick={onResetImpostorGame}
-                  className="px-4 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs border border-slate-700 cursor-pointer flex items-center gap-1.5 transition-colors"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                  <span>Nova Partida / Resetar</span>
-                </button>
-              </div>
+              {/* Botões de Ação Dinâmica quando NÃO em round_elimination */}
+              {impostorConfig.revealState !== 'round_elimination' && (
+                <div className="flex flex-wrap items-center gap-3">
+                  {!impostorConfig.votingActive ? (
+                    <>
+                      <button
+                        onClick={handleAdvanceRound}
+                        className="px-5 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg cursor-pointer flex items-center gap-2 transition-all active:scale-95"
+                      >
+                        <Sparkles className="w-4 h-4" />
+                        <span>
+                          {(impostorConfig.currentRound || 1) < (impostorConfig.roundsTotal || 3)
+                            ? `Avançar para Rodada ${(impostorConfig.currentRound || 1) + 1} de Pistas`
+                            : 'Iniciar Votação nos Celulares'}
+                        </span>
+                      </button>
+
+                      <button
+                        onClick={onStartImpostorVoting}
+                        className="px-5 py-3 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg cursor-pointer flex items-center gap-2 transition-all active:scale-95"
+                      >
+                        <Vote className="w-4 h-4" />
+                        <span>Abrir Votação Imediata</span>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={onRevealImpostor}
+                        className="px-6 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-lg cursor-pointer flex items-center gap-2 transition-all active:scale-95 animate-pulse"
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        <span>Encerrar Votação e Revelar Eliminado no Telão!</span>
+                      </button>
+                    </>
+                  )}
+
+                  <button
+                    onClick={() => {
+                      if (onStartNewMatch) {
+                        onStartNewMatch();
+                      } else {
+                        onResetImpostorGame();
+                      }
+                    }}
+                    className="px-4 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs border border-slate-700 cursor-pointer flex items-center gap-1.5 transition-colors"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    <span>Nova Partida / Resetar</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -714,13 +903,15 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
           onClose={() => setIsAgentModalOpen(false)}
           participants={participants}
           currentConfig={impostorConfig}
-          onSave={(agents, impostors, numAgents, numImpostors, selectionMethod) => {
+          onSave={(agents, impostors, numAgents, numImpostors, selectionMethod, ratio, preset) => {
             onUpdateImpostorConfig({
               agentParticipantIds: agents,
               impostorParticipantIds: impostors,
               numAgents: numAgents || impostorConfig.numAgents,
               numImpostors: numImpostors || impostorConfig.numImpostors,
-              selectionMethod: selectionMethod || impostorConfig.selectionMethod
+              selectionMethod: selectionMethod || impostorConfig.selectionMethod,
+              impostorRatio: ratio,
+              impostorRatioPreset: preset
             });
           }}
           onAddSimulatedParticipants={onAddSimulatedParticipants}

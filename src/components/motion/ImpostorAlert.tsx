@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { AlertTriangle, Eye, ShieldAlert, Sparkles, Skull, CheckCircle } from 'lucide-react';
+import { AlertTriangle, Eye, ShieldAlert, Sparkles, Skull, CheckCircle, RefreshCw } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface ImpostorParticipantCardProps {
@@ -11,6 +11,7 @@ interface ImpostorParticipantCardProps {
   isInvestigator?: boolean;
   revealWordToInvestigators?: boolean;
   hasBeenAssigned?: boolean;
+  isEliminated?: boolean;
 }
 
 export const ImpostorParticipantCard: React.FC<ImpostorParticipantCardProps> = ({
@@ -20,10 +21,36 @@ export const ImpostorParticipantCard: React.FC<ImpostorParticipantCardProps> = (
   isAgent = false,
   isInvestigator = false,
   revealWordToInvestigators = false,
-  hasBeenAssigned = true
+  hasBeenAssigned = true,
+  isEliminated = false
 }) => {
   // Por padrão visível para que o participante nunca fique sem saber
   const [showSecret, setShowSecret] = useState<boolean>(true);
+
+  // Se foi eliminado da partida pela votação
+  if (isEliminated) {
+    return (
+      <div className="w-full max-w-sm mx-auto p-2 flex flex-col items-center">
+        <div className="w-full rounded-3xl p-6 bg-slate-900/95 border-2 border-rose-600/80 text-center shadow-2xl space-y-3 relative overflow-hidden">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-3xl">
+            💀
+          </div>
+          <span className="px-3 py-1 bg-rose-500/30 text-rose-300 border border-rose-500/50 rounded-full font-black text-xs uppercase tracking-widest inline-block">
+            VOCÊ FOI ELIMINADO!
+          </span>
+          <h3 className="text-xl font-black text-white">
+            {isImpostor ? 'Você era o Infiltrado!' : 'Você era um Inocente!'}
+          </h3>
+          <p className="text-xs text-slate-300 leading-relaxed">
+            A maioria dos jogadores votou em você nesta rodada. Você agora está no modo espectador e pode acompanhar os próximos desdobramentos na tela!
+          </p>
+          <div className="p-3 rounded-2xl bg-black/50 border border-slate-800 text-xs text-slate-400">
+            Palavra Secreta da Partida: <span className="font-bold text-amber-300 font-mono">{secretWord}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Se os papéis ainda não foram definidos nesta rodada
   if (!hasBeenAssigned) {
@@ -228,6 +255,204 @@ export const ImpostorParticipantCard: React.FC<ImpostorParticipantCardProps> = (
   );
 };
 
+interface ImpostorRoundEliminationRevealProps {
+  eliminatedName: string;
+  eliminatedAvatar?: string;
+  votesReceived: number;
+  wasImpostor: boolean;
+  roundNumber: number;
+  roundsTotal: number;
+  remainingImpostorsCount: number;
+  totalImpostorsCount: number;
+  isGameOver: boolean;
+  winner?: 'impostors' | 'civilians' | 'agents';
+  onNextRound?: () => void;
+  onNewMatch?: () => void;
+  isPresenter?: boolean;
+}
+
+export const ImpostorRoundEliminationReveal: React.FC<ImpostorRoundEliminationRevealProps> = ({
+  eliminatedName,
+  eliminatedAvatar = '👤',
+  votesReceived,
+  wasImpostor,
+  roundNumber,
+  roundsTotal,
+  remainingImpostorsCount,
+  totalImpostorsCount,
+  isGameOver,
+  winner,
+  onNextRound,
+  onNewMatch,
+  isPresenter = false
+}) => {
+  const [phase, setPhase] = useState<'voting_summary' | 'elimination' | 'role_reveal'>('voting_summary');
+
+  useEffect(() => {
+    const t1 = setTimeout(() => setPhase('elimination'), 1600);
+    const t2 = setTimeout(() => {
+      setPhase('role_reveal');
+      if (wasImpostor) {
+        confetti({ particleCount: 90, spread: 80, origin: { y: 0.6 } });
+      }
+    }, 3600);
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [wasImpostor]);
+
+  return (
+    <div className="w-full h-full flex flex-col items-center justify-center p-4 sm:p-8 text-center max-w-4xl mx-auto">
+      <AnimatePresence mode="wait">
+        {phase === 'voting_summary' && (
+          <motion.div
+            key="voting_summary"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 1.1 }}
+            transition={{ duration: 0.5 }}
+            className="space-y-4"
+          >
+            <div className="w-20 h-20 mx-auto rounded-3xl bg-indigo-500/20 border-2 border-indigo-500/40 flex items-center justify-center text-3xl animate-pulse">
+              🗳️
+            </div>
+            <span className="px-3.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs font-black uppercase tracking-wider">
+              Apuração da Rodada {roundNumber} de {roundsTotal}
+            </span>
+            <h2 className="text-3xl sm:text-5xl font-black text-white tracking-tight">
+              A Votação Foi Encerrada!
+            </h2>
+            <p className="text-slate-300 text-sm sm:text-base font-medium">
+              Contabilizando a escolha de todos os participantes...
+            </p>
+          </motion.div>
+        )}
+
+        {phase === 'elimination' && (
+          <motion.div
+            key="elimination"
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -30 }}
+            transition={{ duration: 0.6 }}
+            className="space-y-4"
+          >
+            <span className="text-xs uppercase tracking-widest text-rose-400 font-black block">
+              Jogador Mais Votado da Sala
+            </span>
+            <div className="p-6 rounded-3xl bg-slate-900/90 border-2 border-rose-500/60 shadow-2xl max-w-md mx-auto space-y-3">
+              <span className="text-6xl block">{eliminatedAvatar}</span>
+              <h3 className="text-3xl font-black text-white">{eliminatedName}</h3>
+              <div className="inline-block px-4 py-1.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 text-xs font-bold font-mono">
+                Recebeu {votesReceived} {votesReceived === 1 ? 'voto' : 'votos'}
+              </div>
+              <div className="pt-2 text-rose-400 font-extrabold text-sm uppercase tracking-wider animate-pulse">
+                💀 Eliminado da Partida!
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {phase === 'role_reveal' && (
+          <motion.div
+            key="role_reveal"
+            initial={{ opacity: 0, scale: 0.85 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.6, type: 'spring' }}
+            className="space-y-6 max-w-xl mx-auto w-full"
+          >
+            <div
+              className={`p-6 sm:p-8 rounded-3xl border-2 shadow-2xl space-y-4 ${
+                wasImpostor
+                  ? 'bg-rose-950/70 border-rose-500 text-rose-100 shadow-rose-950/80 ring-2 ring-rose-500/40'
+                  : 'bg-indigo-950/70 border-indigo-500 text-indigo-100 shadow-indigo-950/80 ring-2 ring-indigo-500/40'
+              }`}
+            >
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-4xl">{eliminatedAvatar}</span>
+                <span className="text-2xl font-black text-white">{eliminatedName}</span>
+              </div>
+
+              <div className="space-y-1">
+                <span className="text-xs uppercase font-extrabold tracking-widest text-slate-300 block">
+                  A Revelação da Verdadeira Identidade:
+                </span>
+                <div
+                  className={`text-3xl sm:text-5xl font-black tracking-tight ${
+                    wasImpostor ? 'text-rose-400 animate-pulse' : 'text-emerald-300'
+                  }`}
+                >
+                  {wasImpostor ? '🚨 ERA UM INFILTRADO! 🚨' : '🛡️ ERA UM AGENTE INOCENTE! 🛡️'}
+                </div>
+              </div>
+
+              <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
+                {wasImpostor
+                  ? 'A dedução do grupo foi certeira! Um dos infiltrados foi descoberto e eliminado.'
+                  : 'Atenção! Um agente inocente foi eliminado por engano! O(s) verdadeiro(s) infiltrado(s) continuam escondidos.'}
+              </p>
+
+              {/* Status do Jogo Atual */}
+              <div className="pt-3 border-t border-white/10 grid grid-cols-2 gap-3 text-xs">
+                <div className="p-3 rounded-2xl bg-black/40 border border-white/10 text-center">
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold">
+                    Infiltrados Restantes
+                  </span>
+                  <span className="text-lg font-black text-rose-300 font-mono">
+                    {remainingImpostorsCount} de {totalImpostorsCount}
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-2xl bg-black/40 border border-white/10 text-center">
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold">
+                    Rodada
+                  </span>
+                  <span className="text-lg font-black text-amber-300 font-mono">
+                    {roundNumber} de {roundsTotal}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Ações do Apresentador ou Aviso para Jogadores */}
+            {isPresenter ? (
+              <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                {!isGameOver && onNextRound && (
+                  <button
+                    onClick={onNextRound}
+                    className="px-6 py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs sm:text-sm shadow-xl cursor-pointer flex items-center gap-2 transition-all active:scale-95"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span>Seguir para a Rodada {roundNumber + 1} de {roundsTotal}</span>
+                  </button>
+                )}
+
+                {onNewMatch && (
+                  <button
+                    onClick={onNewMatch}
+                    className="px-5 py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs sm:text-sm shadow-lg cursor-pointer flex items-center gap-2"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    <span>Iniciar Nova Partida</span>
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="text-xs text-slate-400 animate-pulse">
+                {isGameOver
+                  ? 'Fim de jogo! Verifique o resultado final no telão.'
+                  : `Aguarde o apresentador avançar para a Rodada ${roundNumber + 1}...`}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
 interface ImpostorStageRevealProps {
   impostorNames: string[];
   winner: 'impostors' | 'civilians' | 'agents';
@@ -274,10 +499,10 @@ export const ImpostorStageReveal: React.FC<ImpostorStageRevealProps> = ({
               <AlertTriangle className="w-12 h-12" />
             </div>
             <h2 className="text-4xl sm:text-6xl font-black text-white tracking-tight uppercase">
-              Quem é o Infiltrado?
+              Fim de Jogo!
             </h2>
             <p className="text-slate-400 text-lg font-medium">
-              Votação encerrada! Apurando os votos da sala...
+              Apurando o resultado final da partida...
             </p>
           </motion.div>
         )}
@@ -292,7 +517,7 @@ export const ImpostorStageReveal: React.FC<ImpostorStageRevealProps> = ({
             className="space-y-5"
           >
             <span className="text-sm uppercase tracking-widest text-rose-400 font-black">
-              O Infiltrado Revelado
+              {impostorNames.length > 1 ? 'Os Infiltrados Eram:' : 'O Infiltrado Era:'}
             </span>
             <div className="space-y-2">
               {impostorNames.map((name, i) => (
@@ -325,10 +550,10 @@ export const ImpostorStageReveal: React.FC<ImpostorStageRevealProps> = ({
                   <Skull className="w-10 h-10" />
                 </div>
                 <h3 className="text-3xl sm:text-5xl font-black text-rose-400">
-                  Vitória do Infiltrado!
+                  Vitória dos Infiltrados!
                 </h3>
                 <p className="text-slate-300 text-sm leading-relaxed">
-                  O Infiltrado conseguiu se camuflar perfeitamente e enganou a todos sem ser eliminado!
+                  As rodadas limite acabaram e os Infiltrados conseguiram sobreviver sem que todos fossem descobertos!
                 </p>
               </div>
             ) : (
@@ -337,10 +562,10 @@ export const ImpostorStageReveal: React.FC<ImpostorStageRevealProps> = ({
                   <CheckCircle className="w-10 h-10" />
                 </div>
                 <h3 className="text-3xl sm:text-5xl font-black text-emerald-400">
-                  {winner === 'agents' ? 'Vitória dos Investigadores!' : 'Vitória dos Civis!'}
+                  {winner === 'agents' ? 'Vitória dos Investigadores!' : 'Vitória dos Agentes e Civis!'}
                 </h3>
                 <p className="text-slate-300 text-sm leading-relaxed">
-                  O Infiltrado foi desmascarado com sucesso através da dedução das pistas!
+                  Todos os Infiltrados foram descobertos e eliminados com sucesso!
                 </p>
               </div>
             )}

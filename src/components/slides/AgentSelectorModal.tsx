@@ -12,7 +12,9 @@ interface AgentSelectorModalProps {
     impostors: string[],
     numAgents?: number,
     numImpostors?: number,
-    selectionMethod?: 'random' | 'manual'
+    selectionMethod?: 'random' | 'manual',
+    impostorRatio?: number,
+    impostorRatioPreset?: '1_per_2' | '1_per_3' | '1_per_4' | '1_per_5' | '1_per_6' | 'custom'
   ) => void;
   onAddSimulatedParticipants?: () => void;
 }
@@ -25,6 +27,9 @@ export const AgentSelectorModal: React.FC<AgentSelectorModalProps> = ({
   onSave,
   onAddSimulatedParticipants
 }) => {
+  const [ratioPreset, setRatioPreset] = useState<'1_per_2' | '1_per_3' | '1_per_4' | '1_per_5' | '1_per_6' | 'custom'>(
+    currentConfig.impostorRatioPreset || '1_per_4'
+  );
   const [targetAgentCount, setTargetAgentCount] = useState<number>(
     currentConfig.numAgents || 4
   );
@@ -42,17 +47,43 @@ export const AgentSelectorModal: React.FC<AgentSelectorModalProps> = ({
     currentConfig.impostorParticipantIds || []
   );
 
+  // Calcular número de impostores recomendado com base na proporção e no total de participantes
+  const calculateImpostorsForTotal = (total: number, preset: string): number => {
+    if (total <= 1) return 1;
+    let ratio = 0.25;
+    if (preset === '1_per_2') ratio = 0.50;
+    else if (preset === '1_per_3') ratio = 0.333;
+    else if (preset === '1_per_4') ratio = 0.25;
+    else if (preset === '1_per_5') ratio = 0.20;
+    else if (preset === '1_per_6') ratio = 0.166;
+    const count = Math.round(total * ratio);
+    return Math.max(1, Math.min(count, Math.max(1, total - 1)));
+  };
+
   useEffect(() => {
     if (isOpen) {
+      const preset = currentConfig.impostorRatioPreset || '1_per_4';
+      setRatioPreset(preset);
       setTargetAgentCount(currentConfig.numAgents || 4);
-      setTargetImpostorCount(currentConfig.numImpostors || 1);
+      
+      const count = currentConfig.numImpostors || calculateImpostorsForTotal(participants.length || 4, preset);
+      setTargetImpostorCount(count);
+
       setSelectionMethod(currentConfig.selectionMethod || 'random');
       setSelectedAgentIds(currentConfig.agentParticipantIds || []);
       setSelectedImpostorIds(currentConfig.impostorParticipantIds || []);
     }
-  }, [isOpen, currentConfig]);
+  }, [isOpen, currentConfig, participants.length]);
 
   if (!isOpen) return null;
+
+  const handleRatioChange = (newPreset: '1_per_2' | '1_per_3' | '1_per_4' | '1_per_5' | '1_per_6' | 'custom') => {
+    setRatioPreset(newPreset);
+    if (newPreset !== 'custom') {
+      const computed = calculateImpostorsForTotal(participants.length || 4, newPreset);
+      setTargetImpostorCount(computed);
+    }
+  };
 
   const toggleAgent = (participantId: string) => {
     if (selectedAgentIds.includes(participantId)) {
@@ -134,7 +165,22 @@ export const AgentSelectorModal: React.FC<AgentSelectorModalProps> = ({
       finalImpostors = shuffledAgents.slice(0, impCount);
     }
 
-    onSave(finalAgents, finalImpostors, targetAgentCount, targetImpostorCount, selectionMethod);
+    let ratioNum = 0.25;
+    if (ratioPreset === '1_per_2') ratioNum = 0.5;
+    else if (ratioPreset === '1_per_3') ratioNum = 0.333;
+    else if (ratioPreset === '1_per_4') ratioNum = 0.25;
+    else if (ratioPreset === '1_per_5') ratioNum = 0.20;
+    else if (ratioPreset === '1_per_6') ratioNum = 0.166;
+
+    onSave(
+      finalAgents,
+      finalImpostors,
+      targetAgentCount,
+      targetImpostorCount,
+      selectionMethod,
+      ratioNum,
+      ratioPreset
+    );
     onClose();
   };
 
@@ -152,7 +198,7 @@ export const AgentSelectorModal: React.FC<AgentSelectorModalProps> = ({
                 Configurar Agentes & Infiltrados
               </h3>
               <p className="text-xs text-slate-400">
-                Defina a quantidade de agentes no palco, número de infiltrados e a forma de escolha
+                Defina a proporção de infiltrados baseada nos jogadores, agentes e método de escolha
               </p>
             </div>
           </div>
@@ -164,12 +210,34 @@ export const AgentSelectorModal: React.FC<AgentSelectorModalProps> = ({
           </button>
         </div>
 
-        {/* Parâmetros Solicitados: Número de Agentes, Número de Infiltrados e Forma de Escolha */}
+        {/* Parâmetros Solicitados: Proporção de Infiltrados, Número de Agentes e Forma de Escolha */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 rounded-2xl bg-slate-950 border border-slate-800 shrink-0">
-          {/* Número de Agentes */}
+          {/* Proporção de Infiltrados */}
+          <div>
+            <label className="text-[11px] font-bold text-rose-400 uppercase tracking-wider block mb-1">
+              Proporção de Infiltrados:
+            </label>
+            <select
+              value={ratioPreset}
+              onChange={(e) => handleRatioChange(e.target.value as any)}
+              className="w-full px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-xs font-bold text-white focus:outline-none focus:border-rose-500 cursor-pointer"
+            >
+              <option value="1_per_4">1 a cada 4 jogadores (25%)</option>
+              <option value="1_per_5">1 a cada 5 jogadores (20%)</option>
+              <option value="1_per_3">1 a cada 3 jogadores (33%)</option>
+              <option value="1_per_2">1 a cada 2 jogadores (50%)</option>
+              <option value="1_per_6">1 a cada 6 jogadores (16%)</option>
+              <option value="custom">Manual / Fixo ({targetImpostorCount})</option>
+            </select>
+            <span className="text-[10px] text-slate-400 block mt-1">
+              Calcula: <strong className="text-rose-300">{targetImpostorCount} infiltrado(s)</strong> para {participants.length || 4} jogadores
+            </span>
+          </div>
+
+          {/* Número de Agentes no Palco */}
           <div>
             <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-              Qtd. de Agentes no Palco:
+              Qtd. Agentes no Palco:
             </label>
             <select
               value={targetAgentCount}
@@ -181,22 +249,6 @@ export const AgentSelectorModal: React.FC<AgentSelectorModalProps> = ({
               <option value={5}>5 Agentes</option>
               <option value={6}>6 Agentes</option>
               <option value={8}>8 Agentes</option>
-            </select>
-          </div>
-
-          {/* Número de Infiltrados */}
-          <div>
-            <label className="text-[11px] font-bold text-rose-400 uppercase tracking-wider block mb-1">
-              Qtd. de Infiltrados:
-            </label>
-            <select
-              value={targetImpostorCount}
-              onChange={(e) => setTargetImpostorCount(Number(e.target.value))}
-              className="w-full px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-xs font-bold text-white focus:outline-none focus:border-indigo-500 cursor-pointer"
-            >
-              <option value={1}>1 Infiltrado</option>
-              <option value={2}>2 Infiltrados</option>
-              <option value={3}>3 Infiltrados</option>
             </select>
           </div>
 

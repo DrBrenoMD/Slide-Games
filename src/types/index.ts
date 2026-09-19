@@ -237,16 +237,21 @@ export interface ImpostorConfig {
   customWordList?: string[];
   numAgents?: number; // Número de agentes (ex: 3, 4, 5, 6). Padrão 4
   numImpostors?: number; // Número de infiltrados (ex: 1, 2). Padrão 1
+  impostorRatio?: number; // Proporção de infiltrados (ex: 0.25 para 25% ou 1 a cada 4 jogadores)
+  impostorRatioPreset?: '1_per_4' | '1_per_5' | '1_per_3' | '1_per_2' | '1_per_6' | 'custom'; // Preset de proporção
   selectionMethod?: 'random' | 'manual'; // Forma de escolha: 'random' | 'manual'
   revealWordToInvestigators?: boolean; // Revelar palavra para os investigadores
   impostorParticipantIds: string[];
   agentParticipantIds: string[]; // No modo investigador
-  roundsTotal: number;
+  roundsTotal: number; // Limite de rodadas configurado pelo apresentador
   currentRound: number;
   eliminatedIds: string[];
+  lastEliminatedId?: string | null;
+  lastEliminatedWasImpostor?: boolean | null;
+  changeWordOnNextRound?: boolean;
   votingActive: boolean;
   votes: Record<string, string>; // voterId -> suspectId
-  revealState: 'hidden' | 'words_shown' | 'voting' | 'revealed';
+  revealState: 'hidden' | 'words_shown' | 'voting' | 'round_elimination' | 'revealed';
   winner?: 'impostors' | 'civilians' | 'agents';
   votingAudience: 'all' | 'players_only';
 }

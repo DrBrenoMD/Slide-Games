@@ -412,14 +412,17 @@ export const ParticipantView: React.FC<ParticipantViewProps> = ({
           const hasBeenAssigned = ((impostorConfig?.impostorParticipantIds?.length || 0) > 0) || ((impostorConfig?.agentParticipantIds?.length || 0) > 0);
           const isInvestigator = impostorConfig?.mode === 'investigator' && !isAgent && !isImpostor;
           const revealWordToInvestigators = impostorConfig?.revealWordToInvestigators ?? false;
+          const eliminatedIds = impostorConfig?.eliminatedIds || [];
+          const isEliminated = eliminatedIds.includes(participant.id);
 
-          // Candidatos a suspeitos para votação
+          // Candidatos a suspeitos para votação (excluindo os já eliminados)
           const candidateIds = new Set([
             ...(impostorConfig?.agentParticipantIds || []),
             ...(impostorConfig?.impostorParticipantIds || [])
           ]);
 
           const suspects = allParticipants.filter((p) => {
+            if (eliminatedIds.includes(p.id)) return false;
             if (impostorConfig?.mode === 'investigator' && candidateIds.size > 0) {
               if (candidateIds.size > 1 && p.id === participant.id) return false;
               return candidateIds.has(p.id);
@@ -430,7 +433,7 @@ export const ParticipantView: React.FC<ParticipantViewProps> = ({
 
           return (
             <div className="space-y-4 w-full">
-              {/* Card confidencial com a identidade/palavra */}
+              {/* Card confidencial com a identidade/palavra ou aviso de eliminado */}
               <ImpostorParticipantCard
                 isImpostor={isImpostor}
                 secretWord={impostorConfig?.secretWord || 'Palavra Secreta'}
@@ -439,47 +442,73 @@ export const ParticipantView: React.FC<ParticipantViewProps> = ({
                 isInvestigator={isInvestigator}
                 revealWordToInvestigators={revealWordToInvestigators}
                 hasBeenAssigned={hasBeenAssigned}
+                isEliminated={isEliminated}
               />
+
+              {/* Se a revelação de eliminação da rodada estiver ativa */}
+              {impostorConfig?.revealState === 'round_elimination' && (
+                <div className="p-4 rounded-3xl bg-slate-900 border border-slate-800 text-center space-y-2 shadow-xl">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-amber-400 block">
+                    Resultado da Rodada {impostorConfig.currentRound}
+                  </span>
+                  <div className="text-sm font-bold text-white">
+                    {impostorConfig.lastEliminatedWasImpostor ? (
+                      <span className="text-rose-400">🚨 Um Infiltrado foi desmascarado e eliminado!</span>
+                    ) : (
+                      <span className="text-sky-300">🛡️ Um Agente Inocente foi eliminado!</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Acompanhe o telão principal para ver todos os detalhes e a próxima rodada.
+                  </p>
+                </div>
+              )}
 
               {/* Se a votação do Infiltrado estiver ativa */}
               {impostorConfig?.votingActive && (
                 <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 shadow-xl space-y-3">
                   <div className="text-center">
                     <span className="text-xs uppercase tracking-wider font-bold text-rose-400">
-                      Hora do Julgamento!
+                      Votação da Rodada {impostorConfig.currentRound || 1}
                     </span>
                     <h4 className="text-sm font-bold text-white mt-0.5">
-                      Quem você acha que é o Infiltrado?
+                      {isEliminated
+                        ? 'Você foi eliminado e não pode votar nesta rodada.'
+                        : 'Quem você acha que é o Infiltrado para ser eliminado?'}
                     </h4>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
-                    {suspects.map((p) => (
-                      <button
-                        key={p.id}
-                        onClick={() => handleVoteSuspect(p.id)}
-                        disabled={votedSuspectId !== null}
-                        className={`p-2.5 rounded-xl border flex items-center gap-2 text-xs font-bold transition-all cursor-pointer ${
-                          votedSuspectId === p.id
-                            ? 'bg-rose-600/30 border-rose-500 text-rose-300 ring-2 ring-rose-500/40'
-                            : 'bg-slate-800/60 border-slate-700 text-slate-300 hover:bg-slate-800'
-                        }`}
-                      >
-                        <span className="text-lg">{p.avatar}</span>
-                        <span className="truncate">{p.name}</span>
-                      </button>
-                    ))}
-                    {suspects.length === 0 && (
-                      <div className="col-span-2 text-center py-4 text-xs text-slate-400">
-                        Nenhum suspeito disponível para votação nesta rodada.
+                  {!isEliminated && (
+                    <>
+                      <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                        {suspects.map((p) => (
+                          <button
+                            key={p.id}
+                            onClick={() => handleVoteSuspect(p.id)}
+                            disabled={votedSuspectId !== null}
+                            className={`p-2.5 rounded-xl border flex items-center gap-2 text-xs font-bold transition-all cursor-pointer ${
+                              votedSuspectId === p.id
+                                ? 'bg-rose-600/30 border-rose-500 text-rose-300 ring-2 ring-rose-500/40'
+                                : 'bg-slate-800/60 border-slate-700 text-slate-300 hover:bg-slate-800'
+                            }`}
+                          >
+                            <span className="text-lg">{p.avatar}</span>
+                            <span className="truncate">{p.name}</span>
+                          </button>
+                        ))}
+                        {suspects.length === 0 && (
+                          <div className="col-span-2 text-center py-4 text-xs text-slate-400">
+                            Nenhum suspeito disponível para votação nesta rodada.
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
 
-                  {votedSuspectId && (
-                    <div className="text-center text-xs font-bold text-rose-400 pt-1">
-                      ✓ Seu voto foi registrado!
-                    </div>
+                      {votedSuspectId && (
+                        <div className="text-center text-xs font-bold text-rose-400 pt-1">
+                          ✓ Seu voto de eliminação foi registrado!
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}
