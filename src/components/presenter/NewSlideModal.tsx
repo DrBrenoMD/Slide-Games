@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Slide, SlideType } from '../../types';
 import {
   X,
+  Sparkles,
   HelpCircle,
   CheckSquare,
   Zap,
@@ -15,7 +16,8 @@ import {
   ListOrdered,
   Quote,
   QrCode,
-  Trophy
+  Trophy,
+  Layout
 } from 'lucide-react';
 
 interface NewSlideOption {
@@ -29,6 +31,15 @@ interface NewSlideOption {
 }
 
 const SLIDE_TYPE_OPTIONS: NewSlideOption[] = [
+  {
+    type: 'content_blank',
+    title: 'Slide em Branco (Canvas Livre)',
+    description: 'Comece do zero com tela limpa. Adicione e posicione textos, fotos, vídeos, formas e animações livremente.',
+    category: 'content',
+    icon: <Layout className="w-6 h-6 text-sky-400" />,
+    badge: 'Canva Livre',
+    badgeColor: 'bg-sky-500/20 text-sky-300 border-sky-500/40'
+  },
   {
     type: 'quiz_multiple_choice',
     title: 'Quiz de Múltipla Escolha',

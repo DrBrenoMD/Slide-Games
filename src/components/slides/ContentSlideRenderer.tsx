@@ -10,6 +10,15 @@ interface ContentSlideRendererProps {
 export const ContentSlideRenderer: React.FC<ContentSlideRendererProps> = ({ slide }) => {
   const { type, title, subtitle, content, bullets, imageUrl, quoteAuthor } = slide;
 
+  // Renderizador para Slide em Branco (Canvas Livre Total)
+  if (type === 'content_blank') {
+    return (
+      <div className="w-full h-full relative">
+        {/* Espaço limpo e transparente para os elementos animados e customizados */}
+      </div>
+    );
+  }
+
   // Renderizador para Slide de Capa / Título
   if (type === 'content_cover') {
     return (

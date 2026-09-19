@@ -10,7 +10,11 @@ import {
   Loader2,
   Check,
   ShieldCheck,
-  Plus
+  Plus,
+  AlertTriangle,
+  X,
+  Copy,
+  ExternalLink
 } from 'lucide-react';
 
 interface UserAuthBarProps {
@@ -29,7 +33,7 @@ export const UserAuthBar: React.FC<UserAuthBarProps> = ({
   const { user, userProfile, loading, loginWithGoogle, logout, savedPresentations, savedCloudRooms } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<{ message: string; isUnauthorizedDomain?: boolean; domain?: string } | null>(null);
 
   const handleLogin = async () => {
     setIsLoggingIn(true);
@@ -37,8 +41,29 @@ export const UserAuthBar: React.FC<UserAuthBarProps> = ({
     try {
       await loginWithGoogle();
     } catch (err: any) {
-      if (err?.code !== 'auth/popup-closed-by-user') {
-        setAuthError('Falha ao conectar com o Google. Tente novamente.');
+      console.error('Login error detail:', err);
+      if (err?.code === 'auth/popup-closed-by-user') {
+        // Usuário fechou o popup intencionalmente
+        return;
+      }
+      
+      const currentHost = typeof window !== 'undefined' ? window.location.hostname : '';
+      if (err?.code === 'auth/unauthorized-domain' || err?.message?.includes('unauthorized-domain')) {
+        setAuthError({
+          message: `Domínio não autorizado no Firebase Auth: ${currentHost}`,
+          isUnauthorizedDomain: true,
+          domain: currentHost
+        });
+      } else if (err?.code === 'auth/popup-blocked') {
+        setAuthError({
+          message: 'O navegador bloqueou a janela pop-up de login. Permita pop-ups para este site e tente novamente.',
+          isUnauthorizedDomain: false
+        });
+      } else {
+        setAuthError({
+          message: err?.message ? `Erro ao autenticar: ${err.message}` : 'Falha ao conectar com o Google. Tente novamente.',
+          isUnauthorizedDomain: false
+        });
       }
     } finally {
       setIsLoggingIn(false);
@@ -86,8 +111,48 @@ export const UserAuthBar: React.FC<UserAuthBarProps> = ({
         </button>
 
         {authError && (
-          <div className="absolute right-0 top-full mt-1.5 p-2 rounded-xl bg-rose-950 border border-rose-800 text-[11px] text-rose-200 whitespace-nowrap shadow-xl z-50">
-            {authError}
+          <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 p-3.5 rounded-2xl bg-slate-900 border border-rose-500/60 text-xs text-rose-200 shadow-2xl z-50 animate-in fade-in zoom-in-95">
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <div className="flex items-center gap-1.5 font-bold text-rose-300">
+                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>{authError.isUnauthorizedDomain ? 'Domínio Não Autorizado' : 'Erro de Autenticação'}</span>
+              </div>
+              <button
+                onClick={() => setAuthError(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            
+            <p className="text-[11px] text-slate-300 leading-relaxed mb-2.5">
+              {authError.message}
+            </p>
+
+            {authError.isUnauthorizedDomain && authError.domain && (
+              <div className="space-y-2 pt-1 border-t border-slate-800">
+                <div className="text-[11px] text-slate-400">
+                  Para liberar o login no seu domínio externo (<code className="text-amber-300 font-mono font-bold">{authError.domain}</code>):
+                </div>
+                <div className="bg-slate-950 p-2 rounded-xl border border-slate-800 text-[10px] space-y-1 text-slate-300">
+                  <div>1. Acesse o <strong>Firebase Console</strong> do seu projeto</div>
+                  <div>2. Vá em <strong>Authentication</strong> &gt; aba <strong>Settings</strong> &gt; <strong>Authorized domains</strong></div>
+                  <div>3. Clique em <strong>Add domain</strong> e cole:</div>
+                  <div className="flex items-center justify-between gap-2 bg-slate-900 p-1.5 rounded-lg border border-slate-700 font-mono text-indigo-300 font-bold mt-1">
+                    <span className="truncate">{authError.domain}</span>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(authError.domain || '');
+                        alert(`Copiado: ${authError.domain}`);
+                      }}
+                      className="px-2 py-0.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1 text-[10px] cursor-pointer"
+                    >
+                      <Copy className="w-3 h-3" /> Copiar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

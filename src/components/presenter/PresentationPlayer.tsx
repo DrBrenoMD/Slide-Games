@@ -10,6 +10,7 @@ import { TermSprintSlideRenderer } from '../slides/TermSprintSlideRenderer';
 import { ImagePinSlideRenderer } from '../slides/ImagePinSlideRenderer';
 import { WordCloudSlideRenderer } from '../slides/WordCloudSlideRenderer';
 import { ImpostorSlideRenderer } from '../slides/ImpostorSlideRenderer';
+import { AnimatedSlideElementsOverlay } from '../slides/AnimatedSlideElementsOverlay';
 import { PresenterControlBar } from './PresenterControlBar';
 
 interface PresentationPlayerProps {
@@ -234,7 +235,10 @@ export const PresentationPlayer: React.FC<PresentationPlayerProps> = ({
           slideKey={currentSlide.id}
           animation={currentSlide.animation}
         >
-          {renderSlideContent()}
+          <div className="w-full h-full relative overflow-hidden">
+            {renderSlideContent()}
+            <AnimatedSlideElementsOverlay elements={currentSlide.elements} />
+          </div>
         </MotionSlideContainer>
       </div>
 

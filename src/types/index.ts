@@ -31,6 +31,7 @@ export interface Participant {
 
 export type SlideType =
   // Conteúdo & Apresentação (Estilo Canva / PPT)
+  | 'content_blank'
   | 'content_cover'
   | 'content_bullets'
   | 'content_media'
@@ -101,6 +102,134 @@ export interface SlideAnimationConfig {
   backgroundEffect?: 'gradient-mesh' | 'particles' | 'grid' | 'pulse' | 'none';
 }
 
+export type SlideElementType =
+  | 'text'
+  | 'image'
+  | 'video'
+  | 'audio'
+  | 'shape'
+  | 'sticker'
+  | 'quiz_widget'
+  | 'poll_widget'
+  | 'timer_widget'
+  | 'wordcloud_widget';
+
+export interface InteractiveWidgetOption {
+  id: string;
+  text: string;
+  isCorrect?: boolean;
+  color?: string;
+  icon?: string;
+  votesCount?: number;
+}
+
+export interface InteractiveWidgetConfig {
+  widgetType: 'quiz' | 'poll' | 'timer' | 'wordcloud';
+  question?: string;
+  options?: InteractiveWidgetOption[];
+  timerSeconds?: number;
+  points?: number;
+  layout?: 'single_column' | 'two_columns' | 'horizontal_row';
+  showLiveVotes?: boolean;
+  revealAnswer?: boolean;
+}
+
+export type ElementAnimationType =
+  | 'none'
+  | 'fade-in'
+  | 'slide-up'
+  | 'slide-down'
+  | 'slide-left'
+  | 'slide-right'
+  | 'zoom-in'
+  | 'zoom-out'
+  | 'bounce'
+  | 'flip'
+  | 'rotate-in'
+  | 'pulse-loop'
+  | 'float-loop'
+  | 'spin-loop'
+  | 'glow-loop'
+  | 'shake-loop'
+  | 'heartbeat';
+
+export interface ElementAnimation {
+  type: ElementAnimationType;
+  delay?: number; // seconds
+  duration?: number; // seconds
+  trigger?: 'on_load' | 'on_click' | 'on_hover' | 'continuous';
+  repeat?: 'once' | 'infinite';
+  easing?: 'ease' | 'linear' | 'ease-in-out' | 'spring' | 'bounce';
+}
+
+export interface ElementFilter {
+  brightness?: number; // 0 - 200 (%)
+  contrast?: number; // 0 - 200 (%)
+  saturate?: number; // 0 - 200 (%)
+  blur?: number; // 0 - 30 (px)
+  grayscale?: number; // 0 - 100 (%)
+  sepia?: number; // 0 - 100 (%)
+  invert?: number; // 0 - 100 (%)
+  hueRotate?: number; // 0 - 360 (deg)
+  opacity?: number; // 0 - 100 (%)
+}
+
+export interface ElementStyle {
+  color?: string;
+  backgroundColor?: string;
+  backgroundGradient?: string;
+  fontSize?: number; // px
+  fontWeight?: 'normal' | 'medium' | 'semibold' | 'bold' | 'black';
+  fontFamily?: string;
+  fontStyle?: 'normal' | 'italic';
+  textAlign?: 'left' | 'center' | 'right' | 'justify';
+  letterSpacing?: number;
+  lineHeight?: number;
+  padding?: number;
+  borderRadius?: number;
+  borderWidth?: number;
+  borderColor?: string;
+  borderStyle?: 'solid' | 'dashed' | 'dotted' | 'none';
+  shadow?: 'none' | 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'glow-indigo' | 'glow-rose' | 'glow-emerald' | 'glow-amber' | 'glow-sky';
+  objectFit?: 'cover' | 'contain' | 'fill';
+  backdropBlur?: number;
+}
+
+export interface SlideElement {
+  id: string;
+  type: SlideElementType;
+  name: string;
+  x: number; // 0 - 100 (%)
+  y: number; // 0 - 100 (%)
+  width: number; // 0 - 100 (%)
+  height: number; // 0 - 100 (%) ou auto (-1)
+  rotation?: number; // -180 to 180 degrees
+  zIndex: number;
+  locked?: boolean;
+  hidden?: boolean;
+
+  // Specific content
+  text?: string;
+  mediaUrl?: string; // Image URL, Video URL/Embed, Audio URL/Data URI
+  mediaType?: 'upload' | 'url' | 'youtube' | 'preset';
+  alt?: string;
+  audioTitle?: string;
+  autoplay?: boolean;
+  loop?: boolean;
+  muted?: boolean;
+  controls?: boolean;
+  volume?: number; // 0 to 1
+  audioLayout?: 'badge' | 'player' | 'ambient' | 'button';
+  shapeType?: 'rectangle' | 'circle' | 'pill' | 'rounded' | 'speech_bubble' | 'star' | 'badge' | 'arrow_right';
+  iconName?: string;
+  interactiveConfig?: InteractiveWidgetConfig;
+
+  // Visual Customization & Motion Animation
+  style: ElementStyle;
+  filter?: ElementFilter;
+  animation?: ElementAnimation;
+}
+
 export interface ImpostorConfig {
   mode: 'classic' | 'investigator';
   category: string;
@@ -132,6 +261,9 @@ export interface Slide {
   imageUrl?: string;
   quoteAuthor?: string;
   
+  // Custom Media & Overlay Elements (Caixas de Texto, Imagens, Vídeos, Áudios, Formas, Animações)
+  elements?: SlideElement[];
+
   // Configurações do Quiz / Interação
   isCompetitive?: boolean;
   pointsBase?: number;
@@ -149,10 +281,19 @@ export interface Slide {
   
   // Customização visual estilo Canva
   theme: {
+    id?: string;
+    name?: string;
     backgroundColor?: string;
+    backgroundGradient?: string;
+    backgroundImage?: string;
     textColor?: string;
     accentColor?: string;
-    fontFamily?: 'Outfit' | 'Plus Jakarta Sans' | 'JetBrains Mono';
+    secondaryColor?: string;
+    cardBackgroundColor?: string;
+    cardBorderColor?: string;
+    fontFamily?: string;
+    headingFontFamily?: string;
+    category?: string;
   };
   animation: SlideAnimationConfig;
 }

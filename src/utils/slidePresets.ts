@@ -1,4 +1,4 @@
-import { Slide, SlideType, ImpostorConfig } from '../types';
+import { Slide, SlideType, SlideElement, ImpostorConfig } from '../types';
 import { PRESET_WORD_CATEGORIES } from '../data/presetWords';
 
 export function createDefaultSlide(type: SlideType, index: number = 0): Slide {
@@ -17,7 +17,8 @@ export function createDefaultSlide(type: SlideType, index: number = 0): Slide {
       transition: 'spring',
       duration: 0.6,
       backgroundEffect: 'particles'
-    }
+    },
+    elements: []
   };
 
   return populateTypeSpecificFields(baseSlide, type);
@@ -32,8 +33,254 @@ export function convertSlideType(currentSlide: Slide, newType: SlideType): Slide
   return populateTypeSpecificFields(updated, newType);
 }
 
+/**
+ * Converte qualquer slide pré-configurado (com títulos, tópicos, opções de quiz, imagens ou citações)
+ * em elementos totalmente livres e editáveis do Canvas (Canva Studio).
+ */
+export function convertPresetSlideToCanvasElements(slide: Slide): Slide {
+  const newElements: SlideElement[] = [...(slide.elements || [])];
+  let zIndexCounter = newElements.length + 1;
+
+  // 1. Converter Título do Slide
+  if (slide.title && slide.title.trim() && slide.type !== 'content_blank') {
+    newElements.push({
+      id: `el-title-${Date.now()}`,
+      type: 'text',
+      name: 'Título Principal',
+      text: slide.title,
+      x: 8,
+      y: slide.type === 'content_cover' ? 26 : 8,
+      width: 84,
+      height: slide.type === 'content_cover' ? 24 : 15,
+      zIndex: zIndexCounter++,
+      style: {
+        fontSize: slide.type === 'content_cover' ? 44 : 32,
+        fontWeight: 'black',
+        color: '#FFFFFF',
+        fontFamily: slide.theme?.fontFamily || 'Outfit',
+        textAlign: slide.type === 'content_cover' ? 'center' : 'left',
+        shadow: 'lg'
+      },
+      animation: {
+        type: 'fade-in',
+        duration: 0.6
+      }
+    });
+  }
+
+  // 2. Converter Subtítulo
+  if (slide.subtitle && slide.subtitle.trim() && slide.type !== 'content_blank') {
+    newElements.push({
+      id: `el-sub-${Date.now()}`,
+      type: 'text',
+      name: 'Subtítulo',
+      text: slide.subtitle,
+      x: 8,
+      y: slide.type === 'content_cover' ? 52 : 24,
+      width: 84,
+      height: 12,
+      zIndex: zIndexCounter++,
+      style: {
+        fontSize: 18,
+        fontWeight: 'medium',
+        color: '#94A3B8',
+        fontFamily: slide.theme?.fontFamily || 'Outfit',
+        textAlign: slide.type === 'content_cover' ? 'center' : 'left'
+      },
+      animation: {
+        type: 'slide-up',
+        duration: 0.5,
+        delay: 0.1
+      }
+    });
+  }
+
+  // 3. Converter Opções de Quiz / Enquete
+  if (slide.options && slide.options.length > 0) {
+    const isGrid = slide.options.length > 2;
+    slide.options.forEach((opt, idx) => {
+      let optX = 8;
+      let optY = 40;
+      let optW = 84;
+      let optH = 14;
+
+      if (isGrid) {
+        optW = 40;
+        optH = 22;
+        optX = idx % 2 === 0 ? 8 : 52;
+        optY = idx < 2 ? 40 : 66;
+      } else {
+        optW = 40;
+        optH = 28;
+        optX = idx === 0 ? 8 : 52;
+        optY = 46;
+      }
+
+      newElements.push({
+        id: `el-opt-${opt.id || idx}-${Date.now()}`,
+        type: 'shape',
+        name: `Alternativa ${idx + 1}: ${opt.text}`,
+        text: `${opt.icon || '●'} ${opt.text}${opt.isCorrect ? ' ✓' : ''}`,
+        shapeType: 'rounded',
+        x: optX,
+        y: optY,
+        width: optW,
+        height: optH,
+        zIndex: zIndexCounter++,
+        style: {
+          backgroundColor: opt.color ? `${opt.color}25` : 'rgba(99, 102, 241, 0.2)',
+          borderColor: opt.color || '#6366F1',
+          borderWidth: 2,
+          borderStyle: 'solid',
+          borderRadius: 16,
+          color: '#FFFFFF',
+          fontSize: 18,
+          fontWeight: 'bold',
+          textAlign: 'center',
+          shadow: 'md'
+        },
+        animation: {
+          type: 'bounce',
+          duration: 0.5,
+          delay: 0.1 * (idx + 1)
+        }
+      });
+    });
+  }
+
+  // 4. Converter Tópicos / Bullets
+  if (slide.bullets && slide.bullets.length > 0) {
+    slide.bullets.forEach((bullet, idx) => {
+      newElements.push({
+        id: `el-bullet-${idx}-${Date.now()}`,
+        type: 'shape',
+        name: `Tópico ${idx + 1}`,
+        text: `${idx + 1}. ${bullet}`,
+        shapeType: 'rounded',
+        x: 8,
+        y: 38 + idx * 17,
+        width: 84,
+        height: 14,
+        zIndex: zIndexCounter++,
+        style: {
+          backgroundColor: 'rgba(15, 23, 42, 0.85)',
+          borderColor: 'rgba(51, 65, 85, 0.9)',
+          borderWidth: 1.5,
+          borderRadius: 16,
+          color: '#F8FAFC',
+          fontSize: 16,
+          fontWeight: 'medium',
+          textAlign: 'left',
+          padding: 12,
+          shadow: 'sm'
+        },
+        animation: {
+          type: 'slide-left',
+          duration: 0.4,
+          delay: 0.15 * (idx + 1)
+        }
+      });
+    });
+  }
+
+  // 5. Converter Imagem Principal
+  if (slide.imageUrl && slide.type !== 'content_blank') {
+    newElements.push({
+      id: `el-img-${Date.now()}`,
+      type: 'image',
+      name: 'Imagem em Destaque',
+      mediaUrl: slide.imageUrl,
+      x: slide.type === 'content_media' ? 52 : 25,
+      y: slide.type === 'content_media' ? 20 : 35,
+      width: slide.type === 'content_media' ? 42 : 50,
+      height: slide.type === 'content_media' ? 65 : 45,
+      zIndex: zIndexCounter++,
+      style: {
+        borderRadius: 20,
+        borderColor: '#334155',
+        borderWidth: 2,
+        shadow: 'xl',
+        objectFit: 'cover'
+      },
+      filter: {
+        brightness: 100,
+        contrast: 100,
+        opacity: 100
+      },
+      animation: {
+        type: 'zoom-in',
+        duration: 0.6
+      }
+    });
+  }
+
+  // 6. Converter Citação / Autor
+  if (slide.type === 'content_quote' && slide.content) {
+    newElements.push({
+      id: `el-quote-${Date.now()}`,
+      type: 'text',
+      name: 'Citação / Versículo',
+      text: `“${slide.content}”`,
+      x: 10,
+      y: 30,
+      width: 80,
+      height: 38,
+      zIndex: zIndexCounter++,
+      style: {
+        fontSize: 28,
+        fontWeight: 'bold',
+        fontStyle: 'italic',
+        color: '#FFFFFF',
+        textAlign: 'center',
+        lineHeight: 1.5,
+        shadow: 'lg'
+      },
+      animation: {
+        type: 'zoom-in',
+        duration: 0.7
+      }
+    });
+
+    if (slide.quoteAuthor) {
+      newElements.push({
+        id: `el-author-${Date.now()}`,
+        type: 'text',
+        name: 'Autor da Citação',
+        text: `— ${slide.quoteAuthor}`,
+        x: 20,
+        y: 72,
+        width: 60,
+        height: 12,
+        zIndex: zIndexCounter++,
+        style: {
+          fontSize: 18,
+          fontWeight: 'bold',
+          color: '#818CF8',
+          textAlign: 'center',
+          letterSpacing: 1
+        }
+      });
+    }
+  }
+
+  // Retornar o slide convertido com tipo 'content_blank' para liberar o canvas totalmente
+  return {
+    ...slide,
+    type: 'content_blank',
+    title: slide.title || 'Slide Personalizado',
+    subtitle: '',
+    bullets: [],
+    options: [],
+    imageUrl: '',
+    content: '',
+    elements: newElements
+  };
+}
+
 function getDefaultTitleForType(type: SlideType, index: number): string {
   switch (type) {
+    case 'content_blank':
+      return 'Slide em Branco';
     case 'quiz_multiple_choice':
       return `Pergunta ${index + 1}: Qual é a resposta correta?`;
     case 'quiz_true_false':
@@ -71,6 +318,8 @@ function getDefaultTitleForType(type: SlideType, index: number): string {
 
 function getDefaultSubtitleForType(type: SlideType): string {
   switch (type) {
+    case 'content_blank':
+      return '';
     case 'quiz_multiple_choice':
       return 'Selecione a alternativa correta o mais rápido possível!';
     case 'quiz_true_false':
@@ -90,6 +339,18 @@ function getDefaultSubtitleForType(type: SlideType): string {
 
 function populateTypeSpecificFields(slide: Slide, type: SlideType): Slide {
   const result: Slide = { ...slide, type };
+
+  // Slide em Branco (Canvas Livre Total)
+  if (type === 'content_blank') {
+    result.title = slide.title || 'Slide em Branco';
+    result.subtitle = '';
+    result.content = '';
+    result.bullets = [];
+    result.options = [];
+    result.imageUrl = '';
+    result.elements = result.elements || [];
+    return result;
+  }
 
   // Quizes
   if (type === 'quiz_multiple_choice') {

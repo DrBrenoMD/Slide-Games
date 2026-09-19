@@ -6,6 +6,8 @@ import { createDefaultSlide, convertSlideType } from '../../utils/slidePresets';
 import { useAuth } from '../../context/AuthContext';
 import { UserAuthBar } from '../common/UserAuthBar';
 import { NewSlideModal } from './NewSlideModal';
+import { SlideCanvasEditor } from './SlideCanvasEditor';
+import { ThemeGalleryModal } from './ThemeGalleryModal';
 import {
   Plus,
   Trash2,
@@ -94,6 +96,7 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
   const [activeSlideTab, setActiveSlideTab] = useState<'content' | 'theme' | 'timing'>('content');
   const [newWordInput, setNewWordInput] = useState('');
   const [isNewSlideModalOpen, setIsNewSlideModalOpen] = useState(false);
+  const [isThemeGalleryOpen, setIsThemeGalleryOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSavingCloud, setIsSavingCloud] = useState(false);
@@ -671,86 +674,27 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
             </div>
           </div>
 
-          {/* Center Canvas: Live Preview */}
-          <div className="flex-1 p-6 flex flex-col items-center justify-center bg-slate-950/90 overflow-y-auto">
-            <div className="w-full max-w-4xl aspect-[16/9] bg-slate-900 rounded-3xl border-2 border-slate-700 shadow-2xl p-8 flex flex-col justify-between relative overflow-hidden">
-              {/* Badge de Pré-Visualização */}
-              <div className="absolute top-4 right-4 text-[10px] uppercase tracking-wider font-mono font-bold text-slate-500 bg-slate-800/60 px-2.5 py-1 rounded-lg border border-slate-700">
-                Prévia: {currentSlide.type}
-              </div>
-
-              {/* Título e Subtítulo */}
-              <div className="space-y-2">
-                <h2 className="text-3xl font-black text-white">{currentSlide.title}</h2>
-                {currentSlide.subtitle && (
-                  <p className="text-slate-400 text-sm">{currentSlide.subtitle}</p>
-                )}
-              </div>
-
-              {/* Opções de quiz/enquete */}
-              {currentSlide.options && (
-                <div className="grid grid-cols-2 gap-3 my-4">
-                  {currentSlide.options.map((opt) => (
-                    <div
-                      key={opt.id}
-                      className="p-3 rounded-2xl border flex items-center justify-between text-sm font-bold text-white"
-                      style={{ backgroundColor: `${opt.color || '#3B82F6'}20`, borderColor: opt.color || '#3B82F6' }}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span>{opt.icon || '●'}</span>
-                        <span>{opt.text}</span>
-                      </div>
-                      {opt.isCorrect && <CheckCircle className="w-4 h-4 text-emerald-400" />}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Bullets */}
-              {currentSlide.bullets && (
-                <div className="space-y-2 my-3">
-                  {currentSlide.bullets.map((b, i) => (
-                    <div key={i} className="flex items-center gap-2 text-sm text-slate-200">
-                      <span className="w-5 h-5 rounded-full bg-indigo-600/30 text-indigo-400 flex items-center justify-center text-xs font-bold">
-                        {i + 1}
-                      </span>
-                      <span>{b}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Imagem */}
-              {currentSlide.imageUrl && (
-                <div className="my-2 rounded-2xl overflow-hidden max-h-48 border border-slate-700">
-                  <img src={currentSlide.imageUrl} alt="Slide Preview" className="w-full h-full object-cover" />
-                </div>
-              )}
-
-              {/* Previa do Infiltrado */}
-              {currentSlide.type.startsWith('game_impostor') && (
-                <div className="p-4 rounded-2xl bg-rose-950/40 border border-rose-500/40 my-3 text-center space-y-2">
-                  <span className="text-xs uppercase tracking-wider font-extrabold text-rose-400 block">
-                    Jogo O Infiltrado ({currentSlide.impostorConfig?.mode === 'investigator' ? 'Modo Investigador' : 'Modo Clássico'})
-                  </span>
-                  <div className="text-xl font-black text-white">
-                    Categoria: <span className="text-rose-300">{currentSlide.impostorConfig?.category || 'Geral'}</span>
-                  </div>
-                  <div className="text-xs text-slate-300">
-                    Palavra Secreta pré-definida: <span className="font-mono text-indigo-300 font-bold">{currentSlide.impostorConfig?.secretWord}</span>
-                  </div>
-                  <div className="text-[11px] text-slate-400">
-                    Agentes: {currentSlide.impostorConfig?.numAgents || 4} | Infiltrados: {currentSlide.impostorConfig?.numImpostors || 1} | Escolha: {currentSlide.impostorConfig?.selectionMethod === 'manual' ? 'Manual no Palco' : 'Sorteio Aleatório'}
-                  </div>
-                </div>
-              )}
-
-              {/* Rodapé do Slide */}
-              <div className="flex items-center justify-between text-xs text-slate-500 border-t border-slate-800 pt-3">
-                <span>Slide #{currentSlideIndex + 1} de {slides.length}</span>
-                <span>{currentSlide.isCompetitive ? `⏱️ ${currentSlide.timeLimitSeconds || 20}s (Quiz)` : 'Interação Livre'}</span>
-              </div>
-            </div>
+          {/* Center Canvas: Interactive Slide & Media Studio */}
+          <div className="flex-1 p-4 md:p-6 flex flex-col bg-slate-950 overflow-y-auto">
+            <SlideCanvasEditor
+              slide={currentSlide}
+              onUpdateSlide={(updated) => {
+                const updatedSlides = [...slides];
+                updatedSlides[currentSlideIndex] = updated;
+                onUpdateSlides(updatedSlides);
+              }}
+              onApplyThemeToAllSlides={(themeUpdates) => {
+                const updatedSlides = slides.map((s) => ({
+                  ...s,
+                  theme: {
+                    ...s.theme,
+                    ...themeUpdates
+                  }
+                }));
+                onUpdateSlides(updatedSlides);
+                showToast('✓ Tema aplicado a todos os slides da apresentação!');
+              }}
+            />
           </div>
 
           {/* Right Sidebar: Slide Properties Editor */}
@@ -761,6 +705,15 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
                 Propriedades do Slide
               </span>
               <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setIsThemeGalleryOpen(true)}
+                  className="px-2 py-1 rounded-lg text-xs font-bold cursor-pointer bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white flex items-center gap-1 shadow"
+                  title="Galeria de Temas (+30 Estilos)"
+                >
+                  <Palette className="w-3.5 h-3.5 text-amber-300" />
+                  <span className="text-[11px]">Temas</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => setActiveSlideTab('content')}
@@ -782,6 +735,26 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
                   <Clock className="w-3.5 h-3.5" />
                 </button>
               </div>
+            </div>
+
+            {/* Banner de Acesso Rápido a Temas Visuais */}
+            <div className="p-3 rounded-2xl bg-gradient-to-br from-indigo-950/60 to-purple-950/50 border border-indigo-500/30 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] uppercase font-extrabold tracking-wider text-indigo-300 block">
+                  Design do Slide
+                </span>
+                <span className="text-xs font-bold text-white">
+                  {currentSlide.theme?.id ? currentSlide.theme.id.replace('theme_', '').replace(/_/g, ' ') : 'Padrão'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsThemeGalleryOpen(true)}
+                className="px-2.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-black flex items-center gap-1 shadow cursor-pointer transition-all active:scale-95"
+              >
+                <Palette className="w-3 h-3 text-amber-300" />
+                <span>Trocar Tema</span>
+              </button>
             </div>
 
             {/* SELEÇÃO DO TIPO DE SLIDE COM CONVERSÃO INTELIGENTE */}
@@ -819,6 +792,7 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
                   <option value="game_impostor_classic">O Infiltrado (Modo Clássico)</option>
                 </optgroup>
                 <optgroup label="Conteúdo & Apresentação (Canva/PPT)">
+                  <option value="content_blank">✨ Slide em Branco (Canvas Livre)</option>
                   <option value="content_cover">Capa / Título Principal</option>
                   <option value="content_bullets">Lista de Tópicos (Bullets)</option>
                   <option value="content_media">Mídia / Imagem com Texto</option>
@@ -1819,6 +1793,33 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
         isOpen={isNewSlideModalOpen}
         onClose={() => setIsNewSlideModalOpen(false)}
         onSelectType={handleSelectNewSlideType}
+      />
+
+      {/* MODAL: GALERIA DE TEMAS VISUAIS (+30 Temas e Custom) */}
+      <ThemeGalleryModal
+        isOpen={isThemeGalleryOpen}
+        onClose={() => setIsThemeGalleryOpen(false)}
+        currentSlide={currentSlide}
+        onApplyThemeToCurrentSlide={(themeUpdates) => {
+          updateCurrentSlide({
+            theme: {
+              ...currentSlide.theme,
+              ...themeUpdates
+            }
+          });
+          showToast('✓ Tema aplicado ao slide atual!');
+        }}
+        onApplyThemeToAllSlides={(themeUpdates) => {
+          const updatedSlides = slides.map((s) => ({
+            ...s,
+            theme: {
+              ...s.theme,
+              ...themeUpdates
+            }
+          }));
+          onUpdateSlides(updatedSlides);
+          showToast('✓ Tema aplicado a todos os slides da apresentação!');
+        }}
       />
     </div>
   );

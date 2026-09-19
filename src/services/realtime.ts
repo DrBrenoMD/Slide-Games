@@ -47,6 +47,8 @@ class RealtimeSyncService {
   private maxMsgIdCache: number = 200;
   private isDestroyed: boolean = false;
   private wsRetryTimeout: any = null;
+  private wsRetryCount: number = 0;
+  private maxWsRetries: number = 2;
   private peerReconnectTimeout: any = null;
 
   constructor() {
@@ -132,10 +134,17 @@ class RealtimeSyncService {
    */
   private initLocalWebSocket() {
     if (typeof window === 'undefined') return;
+    // Em hosts puramente estáticos/serverless sem servidor customizado, evita spam de websocket
+    if (this.wsRetryCount >= this.maxWsRetries) return;
+
     try {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const wsUrl = `${protocol}//${window.location.host}/ws`;
       this.ws = new WebSocket(wsUrl);
+
+      this.ws.onopen = () => {
+        this.wsRetryCount = 0; // Conexão bem-sucedida
+      };
 
       this.ws.onmessage = (event) => {
         try {
@@ -147,17 +156,20 @@ class RealtimeSyncService {
       };
 
       this.ws.onclose = () => {
+        this.wsRetryCount++;
         clearTimeout(this.wsRetryTimeout);
-        this.wsRetryTimeout = setTimeout(() => {
-          if (!this.isDestroyed) this.initLocalWebSocket();
-        }, 6000);
+        if (this.wsRetryCount < this.maxWsRetries) {
+          this.wsRetryTimeout = setTimeout(() => {
+            if (!this.isDestroyed) this.initLocalWebSocket();
+          }, 6000);
+        }
       };
 
       this.ws.onerror = () => {
         this.ws?.close();
       };
     } catch (e) {
-      // Normal em static pages (ex: GitHub Pages)
+      // Normal em static pages (ex: Vercel, GitHub Pages)
     }
   }
 
