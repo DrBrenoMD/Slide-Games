@@ -41,6 +41,7 @@ interface HomePortalProps {
     roomCode: string;
     roomTitle: string;
     adminPassword: string;
+    roomPassword?: string;
     slides: Slide[];
   }) => void;
   onOpenAdminLogin: (roomCode?: string) => void;
@@ -74,10 +75,12 @@ export const HomePortal: React.FC<HomePortalProps> = ({
     return Math.floor(100000 + Math.random() * 900000).toString();
   };
 
-  const [newRoomCode, setNewRoomCode] = useState(() => generateRandomPin());
+  const [newRoomCode, setNewRoomCode] = useState(() => storageService.generateUniqueRoomCode ? storageService.generateUniqueRoomCode() : generateRandomPin());
   const [roomTitle, setRoomTitle] = useState('Gincana & Slides Interativos');
   const [adminPassword, setAdminPassword] = useState('1234');
   const [confirmPassword, setConfirmPassword] = useState('1234');
+  const [roomPassword, setRoomPassword] = useState('');
+  const [requireRoomPassword, setRequireRoomPassword] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('full_show');
   const [createError, setCreateError] = useState('');
@@ -112,8 +115,25 @@ export const HomePortal: React.FC<HomePortalProps> = ({
     setCreateError('');
 
     const cleanPin = newRoomCode.trim().toUpperCase();
+    const cleanTitle = roomTitle.trim();
+
     if (!cleanPin || cleanPin.length < 4) {
       setCreateError('O PIN da sala deve ter pelo menos 4 caracteres.');
+      return;
+    }
+
+    if (!cleanTitle) {
+      setCreateError('Por favor, informe um nome para a sala.');
+      return;
+    }
+
+    if (storageService.isRoomCodeTaken && storageService.isRoomCodeTaken(cleanPin)) {
+      setCreateError(`O código PIN "${cleanPin}" já está em uso por outra sala. Clique em "Gerar Novo PIN".`);
+      return;
+    }
+
+    if (storageService.isRoomTitleTaken && storageService.isRoomTitleTaken(cleanTitle)) {
+      setCreateError(`Já existe uma sala com o nome "${cleanTitle}". Escolha um nome exclusivo para sua sala.`);
       return;
     }
 
@@ -131,8 +151,9 @@ export const HomePortal: React.FC<HomePortalProps> = ({
 
     onCreateRoom({
       roomCode: cleanPin,
-      roomTitle: roomTitle.trim() || 'Apresentação Interativa',
+      roomTitle: cleanTitle,
       adminPassword,
+      roomPassword: requireRoomPassword && roomPassword.trim() ? roomPassword.trim() : undefined,
       slides: template.slides
     });
   };
@@ -836,7 +857,44 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                 </div>
               </div>
 
-              {/* Modelo Inicial de Slides */}
+              {/* Senha dos Participantes (Opcional - Proteção contra intrusos) */}
+              <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-300 uppercase tracking-wider">
+                    <Shield className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Senha de Acesso para Participantes (Opcional)</span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={requireRoomPassword}
+                      onChange={(e) => setRequireRoomPassword(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                  </label>
+                </div>
+                <p className="text-xs text-slate-400">
+                  {requireRoomPassword
+                    ? 'Exige uma senha simples para os participantes entrarem no celular (evita invasores ou participantes indesejados).'
+                    : 'Desativado: Qualquer participante com o código PIN poderá entrar livremente.'}
+                </p>
+
+                {requireRoomPassword && (
+                  <div className="pt-1">
+                    <label className="text-[11px] font-semibold text-amber-300 block mb-1">
+                      Definir Senha da Sala para os Jogadores (Diferente da Senha de ADM)
+                    </label>
+                    <input
+                      type="text"
+                      value={roomPassword}
+                      onChange={(e) => setRoomPassword(e.target.value)}
+                      placeholder="Ex: festa2026 ou 7788"
+                      className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-amber-500/40 text-amber-200 text-sm focus:outline-none focus:border-amber-400 font-mono"
+                    />
+                  </div>
+                )}
+              </div>
               <div>
                 <label className="text-xs uppercase tracking-wider font-bold text-slate-300 block mb-2">
                   Escolha o Modelo Inicial de Slides

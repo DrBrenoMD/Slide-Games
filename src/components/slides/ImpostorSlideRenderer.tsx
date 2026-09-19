@@ -192,8 +192,8 @@ export const ImpostorSlideRenderer: React.FC<ImpostorSlideRendererProps> = ({
               </h3>
               <p className="text-xs sm:text-sm text-slate-300">
                 {config.votingActive
-                  ? 'Abra seu celular e vote em quem você suspeita que seja o Infiltrado para eliminá-lo!'
-                  : 'Cada participante deve falar apenas 1 palavra ligada ao tema. Prestem atenção em quem está blefando!'}
+                  ? 'Abra seu celular e vote no Agente que você suspeita ser o Agente Infiltrado para eliminá-lo!'
+                  : 'Cada Agente deve falar apenas 1 termo ou palavra ligada ao código. Investigadores e Agentes Aliados: prestem atenção em quem está blefando!'}
               </p>
             </div>
           </div>
@@ -214,10 +214,10 @@ export const ImpostorSlideRenderer: React.FC<ImpostorSlideRendererProps> = ({
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
                 <Users className="w-4 h-4 text-indigo-400" />
-                Agentes no Palco ({agentParticipants.length} Jogadores)
+                Agentes no Palco ({agentParticipants.length} Jogadores Ativos)
               </span>
               <span className="text-xs text-slate-400">
-                O(s) Infiltrado(s) estão no palco e não sabem a palavra secreta!
+                Os Agentes Infiltrados estão disfarçados entre os Agentes Aliados!
               </span>
             </div>
 
@@ -269,11 +269,11 @@ export const ImpostorSlideRenderer: React.FC<ImpostorSlideRendererProps> = ({
 
                       <div className="w-full pt-2 border-t border-slate-800 text-[11px] text-slate-400">
                         {isEliminated ? (
-                          <span className="text-rose-400 font-bold">Fora da Partida</span>
+                          <span className="text-rose-400 font-bold">Eliminado da Partida</span>
                         ) : config.votingActive ? (
-                          'Suspeito Elegível'
+                          'Agente Votável'
                         ) : (
-                          'Aguardando Pista'
+                          'Fala Termo na Sua Vez'
                         )}
                       </div>
                     </motion.div>
@@ -285,8 +285,8 @@ export const ImpostorSlideRenderer: React.FC<ImpostorSlideRendererProps> = ({
             {/* Investigadores na Plateia */}
             <div className="pt-4 border-t border-slate-800">
               <div className="flex items-center justify-between mb-2 text-xs text-slate-400">
-                <span className="font-semibold">Investigadores na Plateia ({investigatorParticipants.length})</span>
-                <span>Votarão no celular para eliminar o Infiltrado</span>
+                <span className="font-semibold text-purple-300">🔍 Investigadores na Plateia ({investigatorParticipants.length})</span>
+                <span>Ouvirão os termos dos Agentes e votarão nos suspeitos</span>
               </div>
               <div className="flex flex-wrap gap-2 max-h-24 overflow-y-auto">
                 {investigatorParticipants.map((p) => {
@@ -297,7 +297,7 @@ export const ImpostorSlideRenderer: React.FC<ImpostorSlideRendererProps> = ({
                       className={`px-3 py-1 rounded-xl border text-xs flex items-center gap-1.5 ${
                         isEliminated
                           ? 'bg-rose-950/40 border-rose-800/40 text-rose-300 line-through opacity-70'
-                          : 'bg-slate-800/70 border-slate-700/60 text-slate-300'
+                          : 'bg-purple-950/30 border-purple-800/40 text-purple-200'
                       }`}
                     >
                       <span>{p.avatar}</span>
@@ -315,15 +315,15 @@ export const ImpostorSlideRenderer: React.FC<ImpostorSlideRendererProps> = ({
             </div>
           </div>
         ) : (
-          /* Modo Clássico (Todos os participantes na tela, sem qualquer indicação de quem é o infiltrado) */
+          /* Modo Clássico (Todos os participantes são Agentes Aliados ou Infiltrados) */
           <div className="bg-slate-900/80 rounded-3xl border border-slate-800 p-6 shadow-xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
                 <Users className="w-4 h-4 text-indigo-400" />
-                Participantes Conectados ({participants.length})
+                Agentes na Rodada ({participants.length})
               </span>
               <span className="text-xs text-slate-400">
-                {config.votingActive ? 'Votação para Eliminação em Andamento...' : 'Fase de Pistas'}
+                {config.votingActive ? 'Votação para Eliminação em Andamento...' : 'Fase de Pistas (Todos falam 1 termo)'}
               </span>
             </div>
 
@@ -357,7 +357,7 @@ export const ImpostorSlideRenderer: React.FC<ImpostorSlideRendererProps> = ({
       {/* Rodapé Informativo do Telão */}
       <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
         <div className="flex items-center gap-2">
-          <span>🎮 Regra: Descubra e elimine os Infiltrados antes que as rodadas acabem!</span>
+          <span>🎮 Regra: Identifique e elimine os Agentes Infiltrados antes do fim das rodadas!</span>
         </div>
         <div className="font-mono text-[11px] text-slate-500">
           Telão Público

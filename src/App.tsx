@@ -450,10 +450,68 @@ export default function App() {
         if (data.teams) setTeams(data.teams);
         if (data.teamMode) setTeamMode(data.teamMode);
         if (data.slides && data.slides.length > 0) setSlides(data.slides);
-        if (data.participants) setParticipants(data.participants);
+        if (data.participants) {
+          setParticipants((prev) => {
+            if (localParticipantId && prev[localParticipantId]) {
+              return { ...data.participants, [localParticipantId]: prev[localParticipantId] };
+            }
+            return data.participants;
+          });
+        }
       }
 
-      // 8. Troca de slide direta
+      // 8. Participante Saiu da Sala
+      if (msg.type === 'PARTICIPANT_LEAVE' && msg.payload?.participantId) {
+        const pId = msg.payload.participantId;
+        setParticipants((prev) => {
+          const next = { ...prev };
+          delete next[pId];
+          return next;
+        });
+      }
+
+      // 9. Participante Removido / Expulso pelo Apresentador
+      if (msg.type === 'PARTICIPANT_KICK' && msg.payload?.participantId) {
+        const pId = msg.payload.participantId;
+        setParticipants((prev) => {
+          const next = { ...prev };
+          delete next[pId];
+          return next;
+        });
+        if (localParticipantId === pId) {
+          alert('Você foi removido da sala pelo apresentador.');
+          setLocalParticipantId(null);
+          try {
+            sessionStorage.removeItem('apresentalive_participant_id');
+            sessionStorage.removeItem('apresentalive_participant_name');
+          } catch {
+            // ignore
+          }
+        }
+      }
+
+      // 10. Participante Banido pelo Apresentador
+      if (msg.type === 'PARTICIPANT_BAN' && msg.payload?.participantId) {
+        const pId = msg.payload.participantId;
+        setParticipants((prev) => {
+          const next = { ...prev };
+          delete next[pId];
+          return next;
+        });
+        if (localParticipantId === pId) {
+          alert('Você foi banido desta sala pelo apresentador.');
+          setLocalParticipantId(null);
+          try {
+            sessionStorage.removeItem('apresentalive_participant_id');
+            sessionStorage.removeItem('apresentalive_participant_name');
+            sessionStorage.setItem(`apresentalive_banned_${roomCode}`, 'true');
+          } catch {
+            // ignore
+          }
+        }
+      }
+
+      // 11. Troca de slide direta
       if (msg.type === 'CHANGE_SLIDE' && role === 'participant' && msg.payload) {
         if (msg.payload.currentSlideIndex !== undefined) {
           setCurrentSlideIndex(msg.payload.currentSlideIndex);
@@ -466,7 +524,7 @@ export default function App() {
         }
       }
 
-      // 9. Tique do cronômetro
+      // 12. Tique do cronômetro
       if (msg.type === 'TIMER_TICK' && role === 'participant' && msg.payload) {
         if (msg.payload.remaining !== undefined) {
           setTimerRemaining(msg.payload.remaining);
@@ -474,14 +532,14 @@ export default function App() {
         }
       }
 
-      // 10. Cronômetro esgotado
+      // 13. Cronômetro esgotado
       if (msg.type === 'TIMER_EXPIRED' && role === 'participant') {
         setTimerRemaining(0);
         setTimerActive(false);
         setShowAnswers(true);
       }
 
-      // 11. Solicitação de estado completo (novo participante ou projetor conectou)
+      // 14. Solicitação de estado completo (novo participante ou projetor conectou)
       if (msg.type === 'REQUEST_FULL_STATE' && role === 'presenter') {
         realtimeService.broadcast('SYNC_STATE', roomCode, 'presenter', {
           currentSlideIndex,
@@ -507,7 +565,8 @@ export default function App() {
     teams,
     teamMode,
     participants,
-    roomCode
+    roomCode,
+    localParticipantId
   ]);
 
   // Ação de entrada de participante local
@@ -583,6 +642,40 @@ export default function App() {
 
     // Solicita imediatamente a sincronização de estado completo para a sala
     realtimeService.broadcast('REQUEST_FULL_STATE', roomCode, newParticipant.id, {});
+  };
+
+  // Expulsar participante da sala
+  const handleKickParticipant = (participantId: string) => {
+    setParticipants((prev) => {
+      const next = { ...prev };
+      delete next[participantId];
+      return next;
+    });
+    realtimeService.broadcast('PARTICIPANT_KICK', roomCode, 'presenter', {
+      participantId
+    });
+  };
+
+  // Banir participante da sala
+  const handleBanParticipant = (participantId: string) => {
+    setParticipants((prev) => {
+      const next = { ...prev };
+      delete next[participantId];
+      return next;
+    });
+    const saved = storageService.getSavedRoom(roomCode);
+    if (saved) {
+      const banned = saved.bannedParticipantIds || [];
+      if (!banned.includes(participantId)) {
+        storageService.saveRoom({
+          ...saved,
+          bannedParticipantIds: [...banned, participantId]
+        });
+      }
+    }
+    realtimeService.broadcast('PARTICIPANT_BAN', roomCode, 'presenter', {
+      participantId
+    });
   };
 
   // Botões de navegação de slides do apresentador
@@ -1573,6 +1666,8 @@ export default function App() {
               onTogglePresenterPlaying={handleTogglePresenterPlaying}
               onPresenterSubmitAnswer={handlePresenterSubmitAnswer}
               onPresenterImpostorVote={handlePresenterImpostorVote}
+              onKickParticipant={handleKickParticipant}
+              onBanParticipant={handleBanParticipant}
               presenterPlayerName={presenterPlayerName}
               onChangePresenterPlayerName={handleChangePresenterPlayerName}
               presenterPlayerAvatar={presenterPlayerAvatar}

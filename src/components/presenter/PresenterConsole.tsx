@@ -72,6 +72,8 @@ interface PresenterConsoleProps {
   onOpenProjectorWindow?: () => void;
   onPresenterSubmitAnswer?: (answer: any) => void;
   onPresenterImpostorVote?: (suspectId: string) => void;
+  onKickParticipant?: (participantId: string) => void;
+  onBanParticipant?: (participantId: string) => void;
   isPresenterPlaying?: boolean;
   onTogglePresenterPlaying?: (playing: boolean) => void;
   presenterPlayerName?: string;
@@ -112,6 +114,8 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
   onOpenProjectorWindow,
   onPresenterSubmitAnswer,
   onPresenterImpostorVote,
+  onKickParticipant,
+  onBanParticipant,
   isPresenterPlaying: isPresenterPlayingProp,
   onTogglePresenterPlaying,
   presenterPlayerName = 'Apresentador',
@@ -123,6 +127,8 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
   const { user, savePresentationToCloud, loginWithGoogle } = useAuth();
   const [hideSecrets, setHideSecrets] = useState(false);
   const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
+  const [isParticipantsModalOpen, setIsParticipantsModalOpen] = useState(false);
+  const [participantSearchTerm, setParticipantSearchTerm] = useState('');
   const [cloudFeedback, setCloudFeedback] = useState<string | null>(null);
   const [isSavingCloud, setIsSavingCloud] = useState(false);
   const [changeWordOnNextRound, setChangeWordOnNextRound] = useState(true);
@@ -503,6 +509,16 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
               <span>Projetar (2ª Tela)</span>
             </button>
           )}
+
+          {/* Botão Gerenciar Participantes */}
+          <button
+            onClick={() => setIsParticipantsModalOpen(true)}
+            className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-sm transition-all"
+            title="Ver lista de participantes, remover ou banir da sala"
+          >
+            <Users className="w-3.5 h-3.5 text-indigo-400" />
+            <span>{participants.length} Participantes</span>
+          </button>
 
           <button
             onClick={onOpenSettingsScreen}
@@ -1513,6 +1529,136 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
           </div>
         )}
       </div>
+
+      {/* Modal de Gerenciamento de Participantes (Visualizar, Remover e Banir) */}
+      {isParticipantsModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="p-6 border-b border-slate-800 flex items-center justify-between">
+              <div>
+                <span className="text-xs uppercase font-extrabold tracking-wider text-indigo-400">
+                  Gerenciamento da Sala
+                </span>
+                <h3 className="text-xl font-black text-white flex items-center gap-2">
+                  <Users className="w-5 h-5 text-indigo-400" />
+                  <span>Participantes Conectados ({participants.length})</span>
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsParticipantsModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Search Input */}
+            <div className="p-4 bg-slate-950/60 border-b border-slate-800">
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Buscar participante por nome..."
+                  value={participantSearchTerm}
+                  onChange={(e) => setParticipantSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+            </div>
+
+            {/* Participants List */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {participants
+                .filter((p) =>
+                  p.name.toLowerCase().includes(participantSearchTerm.toLowerCase())
+                )
+                .map((p) => {
+                  const isAgent = (impostorConfig.agentParticipantIds || []).includes(p.id) || p.isAgent;
+                  const isImpostor = (impostorConfig.impostorParticipantIds || []).includes(p.id) || p.isImpostor;
+                  const isEliminated = (impostorConfig.eliminatedIds || []).includes(p.id) || p.isEliminated;
+
+                  return (
+                    <div
+                      key={p.id}
+                      className="p-3 bg-slate-800/60 border border-slate-700/80 rounded-2xl flex items-center justify-between gap-3 hover:bg-slate-800 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">{p.avatar || '👤'}</span>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-sm text-white">{p.name}</span>
+                            {isEliminated ? (
+                              <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                                💀 Eliminado
+                              </span>
+                            ) : isAgent ? (
+                              <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                🕵️ Agente
+                              </span>
+                            ) : (
+                              <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                                🔍 Participante
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[11px] text-slate-400">
+                            Pontuação: <strong className="text-amber-400">{p.score || 0} pts</strong>
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            if (confirm(`Remover "${p.name}" da sala temporariamente?`)) {
+                              if (onKickParticipant) onKickParticipant(p.id);
+                            }
+                          }}
+                          className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-rose-950 text-slate-300 hover:text-rose-300 border border-slate-700 hover:border-rose-700 text-xs font-semibold cursor-pointer transition-all"
+                          title="Expulsar da sala"
+                        >
+                          Remover
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm(`Banir permanentemente "${p.name}" desta sala? Ele não poderá reconectar.`)) {
+                              if (onBanParticipant) onBanParticipant(p.id);
+                            }
+                          }}
+                          className="px-2.5 py-1.5 rounded-xl bg-rose-900/30 hover:bg-rose-900/60 text-rose-300 border border-rose-600/40 text-xs font-semibold cursor-pointer transition-all"
+                          title="Banir da sala permanentemente"
+                        >
+                          Banir
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+
+              {participants.length === 0 && (
+                <div className="text-center py-12 text-slate-500 text-xs">
+                  Nenhum participante conectado no momento.
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-800 bg-slate-950/60 flex items-center justify-between">
+              <span className="text-xs text-slate-400">
+                Participantes removidos ou banidos perdem a conexão em tempo real instantaneamente.
+              </span>
+              <button
+                onClick={() => setIsParticipantsModalOpen(false)}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold cursor-pointer"
+              >
+                Concluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de Seleção de Agentes */}
       {isAgentModalOpen && (

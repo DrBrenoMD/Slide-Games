@@ -21,9 +21,10 @@ export interface Participant {
   teamId?: string;
   score: number;
   lastScoreGain?: number;
-  isAgent?: boolean;       // Para o Modo Investigador de O Infiltrado
-  isImpostor?: boolean;    // Para O Infiltrado
-  isEliminated?: boolean;  // No jogo do Infiltrado
+  isAgent?: boolean;          // Agente (Aliado ou Infiltrado)
+  isImpostor?: boolean;       // Agente Infiltrado (não recebe o código secreto)
+  isInvestigator?: boolean;   // Investigador (apenas vota, não fala pistas)
+  isEliminated?: boolean;     // Eliminado no jogo
   connectedAt: number;
   hasAnswered?: boolean;
   selectedOption?: string | number | string[];
@@ -354,6 +355,8 @@ export interface SavedRoom {
   presentationId?: string;
   slides?: Slide[];
   participantsCount: number;
+  roomPassword?: string; // Senha para os participantes entrarem (opcional)
+  bannedParticipantIds?: string[];
   status: 'active' | 'closed' | 'archived';
   createdAt: string;
   updatedAt: string;
@@ -362,6 +365,8 @@ export interface SavedRoom {
 export interface RoomState {
   roomCode: string;
   presenterPassword: string;
+  roomPassword?: string; // Senha da sala para participantes
+  bannedParticipantIds?: string[];
   presentationTitle: string;
   currentSlideIndex: number;
   state: 'lobby' | 'presenting' | 'finished';

@@ -115,17 +115,17 @@ export const ImpostorParticipantCard: React.FC<ImpostorParticipantCardProps> = (
           {isImpostor && (
             <div className="space-y-2 w-full">
               <div className="inline-block px-3 py-1 bg-rose-500/30 text-rose-300 border border-rose-500/50 rounded-full font-black text-xs uppercase tracking-widest animate-pulse">
-                🚨 SUA FUNÇÃO: O INFILTRADO 🚨
+                🚨 AGENTE INFILTRADO 🚨
               </div>
               <h3 className="text-2xl font-black text-white tracking-tight">
                 VOCÊ NÃO SABE A PALAVRA!
               </h3>
               <div className="p-3.5 rounded-2xl bg-black/40 border border-rose-500/30 text-left text-xs text-rose-200/90 leading-relaxed space-y-1.5">
                 <div className="font-bold flex items-center gap-1.5 text-rose-300">
-                  <span>🎯 Sua Missão:</span>
+                  <span>🎯 Sua Missão de Agente Infiltrado:</span>
                 </div>
                 <p>
-                  Ouça com muita atenção as dicas dos outros jogadores. Invente pistas ambíguas que pareçam que você sabe o tema, e não deixe ninguém desconfiar de você!
+                  Você joga ativamente dizendo 1 termo para associação na sua vez. Preste muita atenção nas dicas dos Agentes Aliados, invente pistas ambíguas e não seja descoberto!
                 </p>
               </div>
             </div>
@@ -133,17 +133,18 @@ export const ImpostorParticipantCard: React.FC<ImpostorParticipantCardProps> = (
 
           {!isImpostor && isAgent && (
             <div className="space-y-2 w-full">
-              <div className="inline-block px-3 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-full font-black text-xs uppercase tracking-wider">
-                🕵️ SUA FUNÇÃO: AGENTE NO PALCO
+              <div className="inline-block px-3 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-full font-black text-xs uppercase tracking-wider">
+                🛡️ SUA FUNÇÃO: AGENTE ALIADO
               </div>
               <p className="text-xs text-slate-300">
-                Você está no palco dos agentes! Sua palavra secreta é:
+                Você recebeu o código secreto! Diga 1 termo para associação na sua vez:
               </p>
 
               {/* Box da Palavra Secreta */}
-              <div className="my-2 p-3.5 rounded-2xl bg-black/50 border-2 border-amber-400/50 flex flex-col items-center justify-center">
+              <div className="my-2 p-3.5 rounded-2xl bg-black/50 border-2 border-emerald-400/50 flex flex-col items-center justify-center">
+                <span className="text-[10px] uppercase font-bold text-emerald-400 block mb-1">Código / Palavra Secreta:</span>
                 {showSecret ? (
-                  <span className="text-3xl font-black text-amber-300 font-mono tracking-wider break-all">
+                  <span className="text-3xl font-black text-emerald-300 font-mono tracking-wider break-all">
                     {secretWord}
                   </span>
                 ) : (
@@ -160,8 +161,8 @@ export const ImpostorParticipantCard: React.FC<ImpostorParticipantCardProps> = (
                 </button>
               </div>
 
-              <p className="text-[11px] text-amber-200/80 leading-tight">
-                Diga uma pista inteligente ao falar. Não seja óbvio demais para não entregar a palavra ao infiltrado!
+              <p className="text-[11px] text-emerald-200/80 leading-tight">
+                Diga uma pista inteligente ao falar. Não seja óbvio demais para não entregar o código secreto ao Agente Infiltrado!
               </p>
             </div>
           )}
@@ -169,17 +170,17 @@ export const ImpostorParticipantCard: React.FC<ImpostorParticipantCardProps> = (
           {!isImpostor && isInvestigator && (
             <div className="space-y-2.5 w-full">
               <div className="inline-block px-3 py-1 bg-purple-500/20 text-purple-300 border border-purple-500/40 rounded-full font-black text-xs uppercase tracking-wider">
-                🔍 SUA FUNÇÃO: INVESTIGADOR (PLATEIA)
+                🔍 SUA FUNÇÃO: INVESTIGADOR
               </div>
 
               {revealWordToInvestigators ? (
                 <div className="space-y-2">
                   <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold">
-                    <span>✓ Palavra Revelada pelo Apresentador!</span>
+                    <span>✓ Código Revelado aos Investigadores</span>
                   </div>
                   <div className="p-3.5 rounded-2xl bg-emerald-950/40 border-2 border-emerald-400/60 flex flex-col items-center justify-center">
                     <span className="text-xs text-emerald-200/80 block mb-0.5 font-bold">
-                      Palavra Secreta desta Rodada:
+                      Código Secreto:
                     </span>
                     {showSecret ? (
                       <span className="text-3xl font-black text-emerald-300 font-mono tracking-wider break-all">
@@ -199,16 +200,16 @@ export const ImpostorParticipantCard: React.FC<ImpostorParticipantCardProps> = (
                     </button>
                   </div>
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    Você sabe a palavra! Ouça atentamente os agentes no palco e descubra quem está dando pistas vagas ou blefando!
+                    Você é um Investigador! Você não fala termos, apenas ouve os Agentes no palco e vota em quem é o Agente Infiltrado!
                   </p>
                 </div>
               ) : (
                 <div className="space-y-2">
                   <h4 className="text-base font-bold text-white">
-                    Descubra quem é o Infiltrado!
+                    Investigue os Agentes no Palco!
                   </h4>
                   <div className="p-3 rounded-2xl bg-black/40 border border-purple-500/30 text-xs text-purple-200/80 leading-relaxed">
-                    A palavra secreta está oculta para a plateia. Ouça as pistas de cada agente no palco para deduzir o infiltrado. Quando a votação for aberta, vote no suspeito!
+                    Como Investigador, você não fala ativamente. Ouça as pistas de cada Agente no palco. Quando a votação for aberta, vote no Agente que você suspeita ser o Infiltrado!
                   </div>
                 </div>
               )}
@@ -217,17 +218,18 @@ export const ImpostorParticipantCard: React.FC<ImpostorParticipantCardProps> = (
 
           {!isImpostor && !isAgent && !isInvestigator && (
             <div className="space-y-2 w-full">
-              <div className="inline-block px-3 py-1 bg-blue-500/20 text-blue-300 border border-blue-500/40 rounded-full font-black text-xs uppercase tracking-wider">
-                🛡️ SUA FUNÇÃO: CIVIL INOCENTE
+              <div className="inline-block px-3 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-full font-black text-xs uppercase tracking-wider">
+                🛡️ SUA FUNÇÃO: AGENTE ALIADO
               </div>
               <p className="text-xs text-slate-300">
-                Sua Palavra Secreta desta Rodada:
+                Você recebeu o código secreto da partida:
               </p>
 
               {/* Box da Palavra Secreta */}
-              <div className="my-2 p-3.5 rounded-2xl bg-black/50 border-2 border-indigo-400/50 flex flex-col items-center justify-center">
+              <div className="my-2 p-3.5 rounded-2xl bg-black/50 border-2 border-emerald-400/50 flex flex-col items-center justify-center">
+                <span className="text-[10px] uppercase font-bold text-emerald-400 block mb-1">Código Secreto:</span>
                 {showSecret ? (
-                  <span className="text-3xl font-black text-white font-mono tracking-wider break-all">
+                  <span className="text-3xl font-black text-emerald-300 font-mono tracking-wider break-all">
                     {secretWord}
                   </span>
                 ) : (
@@ -244,8 +246,8 @@ export const ImpostorParticipantCard: React.FC<ImpostorParticipantCardProps> = (
                 </button>
               </div>
 
-              <p className="text-[11px] text-indigo-200/80 leading-tight">
-                Diga uma palavra relacionada sem ser óbvio demais, para o Infiltrado não descobrir!
+              <p className="text-[11px] text-emerald-200/80 leading-tight">
+                Diga uma palavra relacionada ao código na sua vez sem entregar o jogo ao Agente Infiltrado!
               </p>
             </div>
           )}
@@ -384,14 +386,14 @@ export const ImpostorRoundEliminationReveal: React.FC<ImpostorRoundEliminationRe
                     wasImpostor ? 'text-rose-400 animate-pulse' : 'text-emerald-300'
                   }`}
                 >
-                  {wasImpostor ? '🚨 ERA UM INFILTRADO! 🚨' : '🛡️ ERA UM AGENTE INOCENTE! 🛡️'}
+                  {wasImpostor ? '🚨 AGENTE INFILTRADO ELIMINADO! 🚨' : '🛡️ AGENTE ALIADO ELIMINADO! 🛡️'}
                 </div>
               </div>
 
               <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
                 {wasImpostor
-                  ? 'A dedução do grupo foi certeira! Um dos infiltrados foi descoberto e eliminado.'
-                  : 'Atenção! Um agente inocente foi eliminado por engano! O(s) verdadeiro(s) infiltrado(s) continuam escondidos.'}
+                  ? 'A dedução do grupo foi certeira! Um Agente Infiltrado foi descoberto e eliminado.'
+                  : 'Atenção! Um Agente Aliado foi eliminado por engano! O(s) Agente(s) Infiltrado(s) continuam no jogo.'}
               </p>
 
               {/* Status do Jogo Atual */}

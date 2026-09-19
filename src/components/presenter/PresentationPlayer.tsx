@@ -243,17 +243,19 @@ export const PresentationPlayer: React.FC<PresentationPlayerProps> = ({
       {/* Floating live emojis from participants */}
       <LiveReactionsOverlay reactions={reactions} />
 
-      {/* Main Slide Stage with Motion Graphic transitions */}
-      <div className="flex-1 w-full h-full overflow-hidden flex flex-col relative z-10">
-        <MotionSlideContainer
-          slideKey={currentSlide.id}
-          animation={currentSlide.animation}
-        >
-          <div className="w-full h-full relative overflow-hidden">
-            {renderSlideContent()}
-            <AnimatedSlideElementsOverlay elements={currentSlide.elements} />
-          </div>
-        </MotionSlideContainer>
+      {/* Main Slide Stage with Motion Graphic transitions in 16:9 container */}
+      <div className="flex-1 w-full h-full overflow-hidden flex items-center justify-center relative z-10 p-1 sm:p-2">
+        <div className="w-full h-full max-w-7xl aspect-video mx-auto flex flex-col relative overflow-hidden rounded-2xl shadow-2xl bg-black/20">
+          <MotionSlideContainer
+            slideKey={currentSlide.id}
+            animation={currentSlide.animation}
+          >
+            <div className="w-full h-full relative overflow-hidden">
+              {renderSlideContent()}
+              <AnimatedSlideElementsOverlay elements={currentSlide.elements} />
+            </div>
+          </MotionSlideContainer>
+        </div>
       </div>
 
       {/* Bottom Presenter Control Bar OR Minimal Projector Bar */}

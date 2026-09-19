@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { PRESET_AVATARS } from '../../data/presetWords';
 import { Team, TeamMode } from '../../types';
-import { Sparkles, Users, ArrowRight, UserCheck, Smartphone } from 'lucide-react';
+import { Sparkles, Users, ArrowRight, UserCheck, Smartphone, Lock, Shield, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface ParticipantJoinProps {
   initialRoomCode?: string;
-  onJoin: (data: { name: string; avatar: string; roomCode: string; teamId?: string }) => void;
+  roomRequiresPassword?: boolean;
+  onJoin: (data: { name: string; avatar: string; roomCode: string; teamId?: string; roomPassword?: string }) => void;
   teams?: Team[];
   teamMode?: TeamMode;
   onOpenPresenterLogin: () => void;
@@ -14,6 +15,7 @@ interface ParticipantJoinProps {
 
 export const ParticipantJoin: React.FC<ParticipantJoinProps> = ({
   initialRoomCode = '',
+  roomRequiresPassword = false,
   onJoin,
   teams = [],
   teamMode = 'none',
@@ -22,11 +24,15 @@ export const ParticipantJoin: React.FC<ParticipantJoinProps> = ({
   const [roomCode, setRoomCode] = useState(initialRoomCode);
   const [name, setName] = useState('');
   const [avatar, setAvatar] = useState('🦊');
+  const [roomPassword, setRoomPassword] = useState('');
   const [selectedTeamId, setSelectedTeamId] = useState<string | undefined>(undefined);
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
     if (!roomCode.trim()) {
       setError('Por favor, informe o código PIN da sala.');
       return;
@@ -36,11 +42,15 @@ export const ParticipantJoin: React.FC<ParticipantJoinProps> = ({
       return;
     }
 
+    setIsSubmitting(true);
+    setError('');
+
     onJoin({
       roomCode: roomCode.trim().toUpperCase(),
       name: name.trim(),
       avatar,
-      teamId: selectedTeamId
+      teamId: selectedTeamId,
+      roomPassword: roomPassword.trim() || undefined
     });
   };
 
@@ -99,6 +109,27 @@ export const ParticipantJoin: React.FC<ParticipantJoinProps> = ({
                   setError('');
                 }}
                 className="w-full px-4 py-3 rounded-2xl bg-slate-800 border border-slate-700 text-white font-medium text-base focus:outline-none focus:border-indigo-500 shadow-inner"
+              />
+            </div>
+
+            {/* Optional Room Password (if room is protected) */}
+            <div>
+              <label className="text-xs uppercase tracking-wider font-bold text-amber-300 block mb-1.5 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Shield className="w-3.5 h-3.5" />
+                  <span>Senha da Sala (Se solicitada)</span>
+                </span>
+                <span className="text-[10px] text-slate-400 font-normal lowercase">opcional</span>
+              </label>
+              <input
+                type="password"
+                placeholder="Deixe em branco se a sala for aberta"
+                value={roomPassword}
+                onChange={(e) => {
+                  setRoomPassword(e.target.value);
+                  setError('');
+                }}
+                className="w-full px-4 py-2.5 rounded-2xl bg-slate-800 border border-slate-700 text-amber-200 font-mono text-sm focus:outline-none focus:border-amber-400 shadow-inner"
               />
             </div>
 
@@ -166,10 +197,20 @@ export const ParticipantJoin: React.FC<ParticipantJoinProps> = ({
             {/* Submit Button */}
             <button
               type="submit"
-              className="w-full py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold text-base shadow-xl hover:shadow-indigo-500/30 transition-all flex items-center justify-center gap-2 cursor-pointer pt-3"
+              disabled={isSubmitting}
+              className="w-full py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold text-base shadow-xl hover:shadow-indigo-500/30 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
             >
-              <span>Entrar no Jogo</span>
-              <ArrowRight className="w-5 h-5" />
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Conectando à Sala...</span>
+                </>
+              ) : (
+                <>
+                  <span>Entrar no Jogo</span>
+                  <ArrowRight className="w-5 h-5" />
+                </>
+              )}
             </button>
           </form>
         </motion.div>

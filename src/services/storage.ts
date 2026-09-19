@@ -7,6 +7,8 @@ export interface SavedRoom {
   roomCode: string;
   roomTitle: string;
   presenterPassword: string;
+  roomPassword?: string; // Senha para os participantes entrarem (opcional)
+  bannedParticipantIds?: string[];
   slides: Slide[];
   teamMode: TeamMode;
   teams: Team[];
@@ -129,5 +131,41 @@ export const storageService = {
   setActiveRoomCode(code: string): void {
     if (typeof window === 'undefined') return;
     localStorage.setItem(ACTIVE_ROOM_KEY, code.trim().toUpperCase());
+  },
+
+  isRoomTitleTaken(title: string, excludeRoomCode?: string): boolean {
+    const cleanTitle = title.trim().toLowerCase();
+    if (!cleanTitle) return false;
+    const rooms = this.getSavedRooms();
+    return rooms.some((r) => {
+      if (excludeRoomCode && r.roomCode.toUpperCase() === excludeRoomCode.trim().toUpperCase()) {
+        return false;
+      }
+      return r.roomTitle.trim().toLowerCase() === cleanTitle;
+    });
+  },
+
+  isRoomCodeTaken(code: string, excludeRoomCode?: string): boolean {
+    const cleanCode = code.trim().toUpperCase();
+    if (!cleanCode) return false;
+    const rooms = this.getSavedRooms();
+    return rooms.some((r) => {
+      if (excludeRoomCode && r.roomCode.toUpperCase() === excludeRoomCode.trim().toUpperCase()) {
+        return false;
+      }
+      return r.roomCode.toUpperCase() === cleanCode;
+    });
+  },
+
+  generateUniqueRoomCode(): string {
+    const rooms = this.getSavedRooms();
+    const existingCodes = new Set(rooms.map((r) => r.roomCode.toUpperCase()));
+    let newCode = '';
+    let attempts = 0;
+    do {
+      newCode = Math.floor(100000 + Math.random() * 900000).toString();
+      attempts++;
+    } while (existingCodes.has(newCode) && attempts < 100);
+    return newCode;
   }
 };
