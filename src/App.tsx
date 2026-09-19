@@ -93,6 +93,40 @@ export default function App() {
     return null;
   });
 
+  // Modo Apresentador Também Joga
+  const [isPresenterPlaying, setIsPresenterPlaying] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return sessionStorage.getItem('apresentalive_presenter_playing') === 'true';
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  });
+
+  const [presenterPlayerName, setPresenterPlayerName] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return sessionStorage.getItem('apresentalive_presenter_name') || 'Apresentador';
+      } catch {
+        return 'Apresentador';
+      }
+    }
+    return 'Apresentador';
+  });
+
+  const [presenterPlayerAvatar, setPresenterPlayerAvatar] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return sessionStorage.getItem('apresentalive_presenter_avatar') || '👑';
+      } catch {
+        return '👑';
+      }
+    }
+    return '👑';
+  });
+
   // Referência para timer interval
   const timerRef = useRef<any>(null);
 
@@ -942,6 +976,144 @@ export default function App() {
     handleStartNewMatch();
   };
 
+  // Identificador do apresentador quando joga junto
+  const presenterParticipantId = `presenter-player-${roomCode}`;
+
+  const handleTogglePresenterPlaying = (playing: boolean) => {
+    setIsPresenterPlaying(playing);
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem('apresentalive_presenter_playing', String(playing));
+      } catch {
+        // ignore
+      }
+    }
+    if (playing) {
+      setParticipants((prev) => {
+        if (prev[presenterParticipantId]) return prev;
+        const newPresenterParticipant: Participant = {
+          id: presenterParticipantId,
+          name: presenterPlayerName,
+          avatar: presenterPlayerAvatar,
+          teamId: teams[0]?.id || 'team-1',
+          score: 0,
+          connectedAt: Date.now()
+        };
+        const next = { ...prev, [presenterParticipantId]: newPresenterParticipant };
+        if (role === 'presenter') {
+          realtimeService.broadcast('SYNC_STATE', roomCode, 'presenter', {
+            currentSlideIndex,
+            showAnswers,
+            timerRemaining,
+            timerActive,
+            teams,
+            teamMode,
+            slides,
+            participants: next
+          });
+        }
+        return next;
+      });
+    } else {
+      setParticipants((prev) => {
+        if (!prev[presenterParticipantId]) return prev;
+        const next = { ...prev };
+        delete next[presenterParticipantId];
+        if (role === 'presenter') {
+          realtimeService.broadcast('SYNC_STATE', roomCode, 'presenter', {
+            currentSlideIndex,
+            showAnswers,
+            timerRemaining,
+            timerActive,
+            teams,
+            teamMode,
+            slides,
+            participants: next
+          });
+        }
+        return next;
+      });
+    }
+  };
+
+  const handlePresenterSubmitAnswer = (answer: any) => {
+    setAnswersSubmitted((prev) => ({ ...prev, [presenterParticipantId]: answer }));
+
+    const currentSlide = slides[currentSlideIndex];
+    if (currentSlide && currentSlide.options) {
+      const opt = currentSlide.options.find((o) => o.id === answer.selectedOption);
+      if (opt && opt.isCorrect) {
+        const basePoints = currentSlide.pointsBase || 1000;
+        let earnedPoints = basePoints;
+
+        if (currentSlide.speedBonus && currentSlide.timeLimitSeconds && timerRemaining !== null) {
+          const speedRatio = Math.max(0, timerRemaining) / currentSlide.timeLimitSeconds;
+          earnedPoints = Math.round(basePoints * (0.5 + 0.5 * speedRatio));
+        }
+
+        setParticipants((prev) => {
+          const current = prev[presenterParticipantId];
+          if (!current) return prev;
+          const updatedScore = current.score + earnedPoints;
+          if (current.teamId) {
+            setTeams((tList) =>
+              tList.map((t) => (t.id === current.teamId ? { ...t, score: t.score + earnedPoints } : t))
+            );
+          }
+          return { ...prev, [presenterParticipantId]: { ...current, score: updatedScore } };
+        });
+      }
+    }
+  };
+
+  const handlePresenterImpostorVote = (suspectId: string) => {
+    const currentSlide = slides[currentSlideIndex];
+    if (!currentSlide || !currentSlide.impostorConfig) return;
+    const currentVotes = { ...(currentSlide.impostorConfig.votes || {}) };
+    currentVotes[presenterParticipantId] = suspectId;
+    handleUpdateImpostorConfig({ votes: currentVotes });
+  };
+
+  const handleChangePresenterPlayerName = (name: string) => {
+    setPresenterPlayerName(name);
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem('apresentalive_presenter_name', name);
+      } catch {
+        // ignore
+      }
+    }
+    if (isPresenterPlaying) {
+      setParticipants((prev) => {
+        if (!prev[presenterParticipantId]) return prev;
+        return {
+          ...prev,
+          [presenterParticipantId]: { ...prev[presenterParticipantId], name }
+        };
+      });
+    }
+  };
+
+  const handleChangePresenterPlayerAvatar = (avatar: string) => {
+    setPresenterPlayerAvatar(avatar);
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem('apresentalive_presenter_avatar', avatar);
+      } catch {
+        // ignore
+      }
+    }
+    if (isPresenterPlaying) {
+      setParticipants((prev) => {
+        if (!prev[presenterParticipantId]) return prev;
+        return {
+          ...prev,
+          [presenterParticipantId]: { ...prev[presenterParticipantId], avatar }
+        };
+      });
+    }
+  };
+
   const handleCopyPin = () => {
     navigator.clipboard.writeText(roomCode);
     setCopiedPin(true);
@@ -1397,6 +1569,14 @@ export default function App() {
               onClearImpostorSelection={handleClearImpostorSelection}
               onOpenPresentationScreen={() => setAppView('presentation')}
               onOpenSettingsScreen={() => setAppView('settings')}
+              isPresenterPlaying={isPresenterPlaying}
+              onTogglePresenterPlaying={handleTogglePresenterPlaying}
+              onPresenterSubmitAnswer={handlePresenterSubmitAnswer}
+              onPresenterImpostorVote={handlePresenterImpostorVote}
+              presenterPlayerName={presenterPlayerName}
+              onChangePresenterPlayerName={handleChangePresenterPlayerName}
+              presenterPlayerAvatar={presenterPlayerAvatar}
+              onChangePresenterPlayerAvatar={handleChangePresenterPlayerAvatar}
             />
           )
         )}
