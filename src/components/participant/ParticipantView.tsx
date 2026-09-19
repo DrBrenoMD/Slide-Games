@@ -544,12 +544,26 @@ export const ParticipantView: React.FC<ParticipantViewProps> = ({
           currentSlide.type.startsWith('game_impostor') &&
           (() => {
             const impostorConfig = currentSlide.impostorConfig;
+            const myNameLower = (participant.name || '').trim().toLowerCase();
+            
             const isImpostor =
               (impostorConfig?.impostorParticipantIds || []).includes(participant.id) ||
-              participant.isImpostor === true;
+              participant.isImpostor === true ||
+              allParticipants.some(
+                (p) =>
+                  p.name.trim().toLowerCase() === myNameLower &&
+                  ((impostorConfig?.impostorParticipantIds || []).includes(p.id) || p.isImpostor === true)
+              );
+
             const isAgent =
               (impostorConfig?.agentParticipantIds || []).includes(participant.id) ||
-              participant.isAgent === true;
+              participant.isAgent === true ||
+              allParticipants.some(
+                (p) =>
+                  p.name.trim().toLowerCase() === myNameLower &&
+                  ((impostorConfig?.agentParticipantIds || []).includes(p.id) || p.isAgent === true)
+              );
+
             const hasBeenAssigned =
               (impostorConfig?.impostorParticipantIds?.length || 0) > 0 ||
               (impostorConfig?.agentParticipantIds?.length || 0) > 0;
@@ -557,7 +571,11 @@ export const ParticipantView: React.FC<ParticipantViewProps> = ({
               impostorConfig?.mode === 'investigator' && !isAgent && !isImpostor;
             const revealWordToInvestigators = impostorConfig?.revealWordToInvestigators ?? false;
             const eliminatedIds = impostorConfig?.eliminatedIds || [];
-            const isEliminated = eliminatedIds.includes(participant.id);
+            const isEliminated =
+              eliminatedIds.includes(participant.id) ||
+              allParticipants.some(
+                (p) => p.name.trim().toLowerCase() === myNameLower && eliminatedIds.includes(p.id)
+              );
 
             // Candidatos a suspeitos para votação (excluindo os já eliminados)
             const candidateIds = new Set([

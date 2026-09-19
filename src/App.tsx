@@ -82,7 +82,16 @@ export default function App() {
   const [reactions, setReactions] = useState<LiveReaction[]>([]);
 
   // Dados do participante local nesta aba (se estiver como participante)
-  const [localParticipantId, setLocalParticipantId] = useState<string | null>(null);
+  const [localParticipantId, setLocalParticipantId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return sessionStorage.getItem('apresentalive_participant_id') || null;
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  });
 
   // Referência para timer interval
   const timerRef = useRef<any>(null);
@@ -264,7 +273,16 @@ export default function App() {
       if (msg.type === 'PARTICIPANT_JOIN' && msg.payload?.participant) {
         const p = msg.payload.participant as Participant;
         setParticipants((prev) => {
-          const next = { ...prev, [p.id]: p };
+          const next = { ...prev };
+          const pNameLower = p.name.trim().toLowerCase();
+          // Remove duplicatas anteriores com o mesmo nome
+          Object.keys(next).forEach((k) => {
+            if (k !== p.id && next[k].name.trim().toLowerCase() === pNameLower) {
+              delete next[k];
+            }
+          });
+          next[p.id] = p;
+
           if (role === 'presenter') {
             realtimeService.broadcast('SYNC_STATE', roomCode, 'presenter', {
               currentSlideIndex,
@@ -465,7 +483,15 @@ export default function App() {
     roomCode: string;
     teamId?: string;
   }) => {
-    let assignedTeamId = data.teamId;
+    const cleanName = data.name.trim();
+    const cleanNameLower = cleanName.toLowerCase();
+
+    // Verificar se já existe um participante com este nome na sala (reconexão ou atualização de aba)
+    const existing = Object.values(participants).find(
+      (p) => p.name.trim().toLowerCase() === cleanNameLower
+    );
+
+    let assignedTeamId = data.teamId || existing?.teamId;
 
     // Se for sorteio proporcional automático
     if (teamMode === 'random' && teams.length > 0 && !assignedTeamId) {
@@ -482,20 +508,40 @@ export default function App() {
       assignedTeamId = leastPopulatedTeam.id;
     }
 
+    const participantId = existing?.id || localParticipantId || `p-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
     const newParticipant: Participant = {
-      id: `p-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      name: data.name,
+      id: participantId,
+      name: cleanName,
       avatar: data.avatar,
       teamId: assignedTeamId,
-      score: 0,
-      connectedAt: Date.now()
+      score: existing?.score || 0,
+      connectedAt: existing?.connectedAt || Date.now(),
+      isAgent: existing?.isAgent,
+      isImpostor: existing?.isImpostor
     };
 
     setLocalParticipantId(newParticipant.id);
-    setParticipants((prev) => ({
-      ...prev,
-      [newParticipant.id]: newParticipant
-    }));
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem('apresentalive_participant_id', newParticipant.id);
+        sessionStorage.setItem('apresentalive_participant_name', newParticipant.name);
+      } catch {
+        // ignore
+      }
+    }
+
+    setParticipants((prev) => {
+      const next = { ...prev };
+      // Remove qualquer registro duplicado com o mesmo nome para manter sempre 1 registro único
+      Object.keys(next).forEach((k) => {
+        if (k !== newParticipant.id && next[k].name.trim().toLowerCase() === cleanNameLower) {
+          delete next[k];
+        }
+      });
+      next[newParticipant.id] = newParticipant;
+      return next;
+    });
 
     realtimeService.broadcast('PARTICIPANT_JOIN', roomCode, newParticipant.id, {
       participant: newParticipant
@@ -527,39 +573,47 @@ export default function App() {
   // Adicionar 5 participantes simulados (Bots) para teste
   const handleAddSimulatedParticipants = () => {
     const demoBots = [
-      { name: 'Lucas', avatar: '🦁' },
-      { name: 'Mariana', avatar: '🦊' },
-      { name: 'Pedro', avatar: '🚀' },
-      { name: 'Beatriz', avatar: '🐱' },
-      { name: 'Felipe', avatar: '🤖' }
+      { id: 'bot-lucas', name: 'Lucas', avatar: '🦁' },
+      { id: 'bot-mariana', name: 'Mariana', avatar: '🦊' },
+      { id: 'bot-pedro', name: 'Pedro', avatar: '🚀' },
+      { id: 'bot-beatriz', name: 'Beatriz', avatar: '🐱' },
+      { id: 'bot-felipe', name: 'Felipe', avatar: '🤖' }
     ];
 
-    const newPartsMap: Record<string, Participant> = { ...participants };
+    setParticipants((prev) => {
+      const newPartsMap: Record<string, Participant> = { ...prev };
 
-    demoBots.forEach((bot, idx) => {
-      const id = `bot-${Date.now()}-${idx}`;
-      const assignedTeam = teams[idx % teams.length];
-      newPartsMap[id] = {
-        id,
-        name: bot.name,
-        avatar: bot.avatar,
-        teamId: teamMode !== 'none' ? assignedTeam?.id : undefined,
-        score: Math.floor(Math.random() * 600) + 200,
-        connectedAt: Date.now()
-      };
+      demoBots.forEach((bot, idx) => {
+        // Encontra se já existe um participante ou bot com este nome
+        const existingKey = Object.keys(newPartsMap).find(
+          (k) => newPartsMap[k].name.trim().toLowerCase() === bot.name.toLowerCase() || k === bot.id
+        );
+        const id = existingKey || bot.id;
+        const assignedTeam = teams[idx % teams.length];
+        newPartsMap[id] = {
+          id,
+          name: bot.name,
+          avatar: bot.avatar,
+          teamId: newPartsMap[id]?.teamId || (teamMode !== 'none' ? assignedTeam?.id : undefined),
+          score: newPartsMap[id]?.score || Math.floor(Math.random() * 600) + 200,
+          connectedAt: newPartsMap[id]?.connectedAt || Date.now(),
+          isAgent: newPartsMap[id]?.isAgent,
+          isImpostor: newPartsMap[id]?.isImpostor
+        };
+      });
+
+      return newPartsMap;
     });
-
-    setParticipants(newPartsMap);
 
     // Disparar respostas simuladas nos bots
     const currentSlide = slides[currentSlideIndex];
     if (currentSlide?.options && currentSlide.options.length > 0) {
       setTimeout(() => {
         const simulatedAnswers: Record<string, any> = {};
-        Object.keys(newPartsMap).forEach((pId) => {
+        demoBots.forEach((bot) => {
           const randomOpt =
             currentSlide.options![Math.floor(Math.random() * currentSlide.options!.length)];
-          simulatedAnswers[pId] = { selectedOption: randomOpt.id, timestamp: Date.now() };
+          simulatedAnswers[bot.id] = { selectedOption: randomOpt.id, timestamp: Date.now() };
         });
         setAnswersSubmitted((prev) => ({ ...prev, ...simulatedAnswers }));
       }, 1200);
@@ -894,7 +948,29 @@ export default function App() {
     setTimeout(() => setCopiedPin(false), 2000);
   };
 
-  const currentLocalParticipant = localParticipantId ? participants[localParticipantId] : null;
+  const currentLocalParticipant = (() => {
+    if (localParticipantId && participants[localParticipantId]) {
+      return participants[localParticipantId];
+    }
+    if (localParticipantId) {
+      const found = Object.values(participants).find((p) => p.id === localParticipantId);
+      if (found) return found;
+    }
+    if (typeof window !== 'undefined') {
+      try {
+        const savedName = sessionStorage.getItem('apresentalive_participant_name');
+        if (savedName) {
+          const foundByName = Object.values(participants).find(
+            (p) => p.name.trim().toLowerCase() === savedName.trim().toLowerCase()
+          );
+          if (foundByName) return foundByName;
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return null;
+  })();
 
   // Navegação protegida entre as 4 telas
   const handleNavigateTo = (target: AppView) => {
