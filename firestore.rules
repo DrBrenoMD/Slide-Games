@@ -26,6 +26,28 @@ service cloud.firestore {
       return resource.data;
     }
 
+    function isValidUserProfile(data) {
+      return data.uid is string
+        && data.email is string
+        && data.email.size() <= 200;
+    }
+
+    function isValidPresentation(data) {
+      return data.ownerId is string
+        && data.title is string
+        && data.title.size() <= 200
+        && data.slides is list
+        && data.slides.size() <= 500;
+    }
+
+    function isValidSavedRoom(data) {
+      return data.ownerId is string
+        && data.roomCode is string
+        && data.roomCode.size() <= 20
+        && data.presentationTitle is string
+        && data.presentationTitle.size() <= 200;
+    }
+
     // User profiles
     match /users/{userId} {
       allow get: if isOwner(userId);
@@ -33,47 +55,43 @@ service cloud.firestore {
       allow create: if isOwner(userId)
                     && isValidId(userId)
                     && incoming().uid == userId
-                    && incoming().email is string
-                    && incoming().keys().hasAll(['uid', 'email'])
-                    && incoming().keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'createdAt', 'updatedAt']);
+                    && isValidUserProfile(incoming());
       allow update: if isOwner(userId)
                     && isValidId(userId)
                     && incoming().uid == userId
-                    && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'updatedAt']);
-      allow delete: if isOwner(userId);
+                    && incoming().uid == existing().uid
+                    && isValidUserProfile(incoming());
+      allow delete: if isOwner(userId) && isValidId(userId);
 
       // User presentations subcollection
       match /presentations/{presentationId} {
-        allow read: if isOwner(userId);
+        allow get: if isOwner(userId);
+        allow list: if isOwner(userId);
         allow create: if isOwner(userId)
                       && isValidId(presentationId)
                       && incoming().ownerId == userId
-                      && incoming().title is string
-                      && incoming().title.size() > 0
-                      && incoming().title.size() <= 200
-                      && incoming().slides is list
-                      && incoming().slides.size() <= 200;
+                      && isValidPresentation(incoming());
         allow update: if isOwner(userId)
                       && isValidId(presentationId)
                       && incoming().ownerId == userId
-                      && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'slides', 'theme', 'slideCount', 'updatedAt']);
+                      && incoming().ownerId == existing().ownerId
+                      && isValidPresentation(incoming());
         allow delete: if isOwner(userId) && isValidId(presentationId);
       }
 
       // User saved rooms subcollection
       match /rooms/{roomId} {
-        allow read: if isOwner(userId);
+        allow get: if isOwner(userId);
+        allow list: if isOwner(userId);
         allow create: if isOwner(userId)
                       && isValidId(roomId)
                       && incoming().ownerId == userId
-                      && incoming().roomCode is string
-                      && incoming().roomCode.size() <= 20
-                      && incoming().presentationTitle is string
-                      && incoming().presentationTitle.size() <= 200;
+                      && isValidSavedRoom(incoming());
         allow update: if isOwner(userId)
                       && isValidId(roomId)
                       && incoming().ownerId == userId
-                      && incoming().diff(existing()).affectedKeys().hasOnly(['presentationTitle', 'presentationId', 'slides', 'participantsCount', 'status', 'updatedAt']);
+                      && incoming().ownerId == existing().ownerId
+                      && isValidSavedRoom(incoming());
         allow delete: if isOwner(userId) && isValidId(roomId);
       }
     }

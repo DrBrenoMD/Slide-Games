@@ -9,6 +9,7 @@ import {
 } from '../../types';
 import { PRESET_WORD_CATEGORIES, getRandomWordForCategory } from '../../data/presetWords';
 import { AgentSelectorModal } from '../slides/AgentSelectorModal';
+import { PresentationPlayer } from './PresentationPlayer';
 import { useAuth } from '../../context/AuthContext';
 import { UserAuthBar } from '../common/UserAuthBar';
 import {
@@ -107,6 +108,8 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
   const [cloudFeedback, setCloudFeedback] = useState<string | null>(null);
   const [isSavingCloud, setIsSavingCloud] = useState(false);
   const [changeWordOnNextRound, setChangeWordOnNextRound] = useState(true);
+  const [showLiveScreen, setShowLiveScreen] = useState(true);
+  const [isPresentationPreviewExpanded, setIsPresentationPreviewExpanded] = useState(false);
 
   const handleSaveToCloud = async () => {
     if (!user) {
@@ -185,7 +188,16 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
     if (nextRound > (impostorConfig.roundsTotal || 3)) {
       onStartImpostorVoting();
     } else {
-      onUpdateImpostorConfig({ currentRound: nextRound });
+      if (onAdvanceToNextRound) {
+        onAdvanceToNextRound(changeWordOnNextRound);
+      } else {
+        onUpdateImpostorConfig({
+          currentRound: nextRound,
+          votes: {},
+          votingActive: false,
+          revealState: 'words_shown'
+        });
+      }
     }
   };
 
@@ -411,6 +423,97 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
               </button>
             </div>
           </div>
+        </div>
+
+        {/* TELA DE APRESENTAÇÃO AO VIVO (TELÃO SINCRONIZADO NA TELA DO APRESENTADOR) */}
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-2xl space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-xl bg-indigo-600/20 border border-indigo-500/30 text-indigo-400">
+                <Tv className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span>Tela de Apresentação (Telão ao Vivo)</span>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-mono font-bold uppercase">
+                    Ao Vivo
+                  </span>
+                </h3>
+                <p className="text-[11px] text-slate-400">
+                  Visão exata do que os participantes e o telão estão visualizando
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowLiveScreen(!showLiveScreen)}
+                className="text-xs text-slate-300 hover:text-white px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 cursor-pointer transition-colors"
+              >
+                {showLiveScreen ? 'Ocultar Telão' : 'Mostrar Telão'}
+              </button>
+              {showLiveScreen && (
+                <button
+                  onClick={() => setIsPresentationPreviewExpanded(!isPresentationPreviewExpanded)}
+                  className="text-xs text-slate-300 hover:text-white px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 cursor-pointer transition-colors"
+                >
+                  {isPresentationPreviewExpanded ? 'Modo Padrão' : 'Expandir Telão'}
+                </button>
+              )}
+              {onOpenProjectorWindow && (
+                <button
+                  onClick={onOpenProjectorWindow}
+                  className="text-xs text-sky-300 hover:text-white px-3 py-1.5 rounded-xl bg-sky-600/20 hover:bg-sky-600/30 border border-sky-500/40 cursor-pointer flex items-center gap-1.5 transition-colors font-bold"
+                  title="Abrir Telão em uma nova janela para segundo monitor/projetor"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Janela do Telão</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {showLiveScreen && (
+            <div
+              className={`w-full overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl relative transition-all duration-300 ${
+                isPresentationPreviewExpanded ? 'h-[520px]' : 'h-[340px]'
+              }`}
+            >
+              <PresentationPlayer
+                slides={slides}
+                currentSlideIndex={currentSlideIndex}
+                roomCode={roomCode}
+                appUrl={typeof window !== 'undefined' ? window.location.href.split('?')[0].split('#')[0] : ''}
+                participants={participants}
+                teams={teams}
+                teamMode={teamMode}
+                showAnswers={showAnswers}
+                timerActive={timerActive}
+                timerRemaining={timerRemaining}
+                answersSubmitted={answersSubmitted}
+                imagePins={imagePins}
+                termSubmissions={termSubmissions}
+                reactions={[]}
+                isProjectorOnly={true}
+                isEmbedded={true}
+                onPrevSlide={onPrevSlide}
+                onNextSlide={onNextSlide}
+                onGoToSlide={onGoToSlide}
+                onToggleShowAnswers={onToggleShowAnswers}
+                onToggleTimer={onToggleTimer}
+                onResetTimer={onResetTimer}
+                onOpenTeamManager={() => {}}
+                onAddSimulatedParticipants={onAddSimulatedParticipants}
+                onSwitchToEditor={onOpenSettingsScreen}
+                onUpdateImpostorConfig={onUpdateImpostorConfig}
+                onStartImpostorVoting={onStartImpostorVoting}
+                onRevealImpostor={onRevealImpostor}
+                onResetImpostorGame={onResetImpostorGame}
+                onAdvanceToNextRound={onAdvanceToNextRound}
+                onStartNewMatch={onStartNewMatch}
+              />
+            </div>
+          )}
         </div>
 
         {/* JOGO DO INFILTRADO: PAINEL DE CONTROLE EXCLUSIVO DO APRESENTADOR */}

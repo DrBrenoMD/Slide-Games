@@ -24,6 +24,7 @@
         "title": { "type": "string", "maxLength": 200 },
         "slides": { "type": "array" },
         "theme": { "type": "string" },
+        "slideCount": { "type": "number" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },

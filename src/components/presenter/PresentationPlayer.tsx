@@ -31,6 +31,7 @@ interface PresentationPlayerProps {
   termSubmissions: TermSubmission[];
   reactions: LiveReaction[];
   isProjectorOnly?: boolean;
+  isEmbedded?: boolean;
   onPrevSlide: () => void;
   onNextSlide: () => void;
   onGoToSlide: (index: number) => void;
@@ -65,6 +66,7 @@ export const PresentationPlayer: React.FC<PresentationPlayerProps> = ({
   termSubmissions,
   reactions,
   isProjectorOnly = false,
+  isEmbedded = false,
   onPrevSlide,
   onNextSlide,
   onGoToSlide,
@@ -85,8 +87,9 @@ export const PresentationPlayer: React.FC<PresentationPlayerProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const currentSlide = slides[currentSlideIndex] || slides[0];
 
-  // Teclas de atalho para o apresentador
+  // Teclas de atalho para o apresentador (apenas quando não embutido)
   useEffect(() => {
+    if (isEmbedded) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
@@ -105,7 +108,7 @@ export const PresentationPlayer: React.FC<PresentationPlayerProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onNextSlide, onPrevSlide, onToggleShowAnswers]);
+  }, [isEmbedded, onNextSlide, onPrevSlide, onToggleShowAnswers]);
 
   const handleToggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -231,7 +234,7 @@ export const PresentationPlayer: React.FC<PresentationPlayerProps> = ({
   return (
     <div
       ref={containerRef}
-      className="w-full h-screen flex flex-col justify-between overflow-hidden relative select-none bg-slate-950 text-slate-100"
+      className={`w-full ${isEmbedded ? 'h-full min-h-[300px]' : 'h-screen'} flex flex-col justify-between overflow-hidden relative select-none bg-slate-950 text-slate-100`}
       style={themeStyles.containerStyle}
     >
       {/* Visual Decorator Overlay (Cyber-grid, Stars, Organic leaves, etc.) */}
@@ -254,41 +257,43 @@ export const PresentationPlayer: React.FC<PresentationPlayerProps> = ({
       </div>
 
       {/* Bottom Presenter Control Bar OR Minimal Projector Bar */}
-      {isProjectorOnly ? (
-        <div className="absolute bottom-3 right-3 z-50 flex items-center gap-2 opacity-30 hover:opacity-100 transition-opacity bg-slate-950/80 backdrop-blur-md px-3 py-1.5 rounded-2xl border border-slate-800 text-xs">
-          <span className="font-mono text-slate-400 font-bold">
-            {currentSlideIndex + 1}/{slides.length}
-          </span>
-          <span className="text-[10px] text-sky-400 font-semibold px-2 py-0.5 rounded bg-sky-500/10 border border-sky-500/20">
-            Telão Projetado
-          </span>
-          <button
-            onClick={handleToggleFullscreen}
-            className="text-slate-300 hover:text-white cursor-pointer px-1 py-0.5"
-            title="Tela Cheia"
-          >
-            ⛶
-          </button>
-        </div>
-      ) : (
-        <PresenterControlBar
-          currentSlideIndex={currentSlideIndex}
-          totalSlides={slides.length}
-          showAnswers={showAnswers}
-          timerActive={timerActive}
-          timerRemaining={timerRemaining}
-          onPrevSlide={onPrevSlide}
-          onNextSlide={onNextSlide}
-          onToggleShowAnswers={onToggleShowAnswers}
-          onToggleTimer={onToggleTimer}
-          onResetTimer={onResetTimer}
-          onOpenTeamManager={onOpenTeamManager}
-          onAddSimulatedParticipants={onAddSimulatedParticipants}
-          onToggleFullscreen={handleToggleFullscreen}
-          onSwitchToEditor={onSwitchToEditor}
-          onGoToLobby={() => onGoToSlide(0)}
-          onOpenProjectorWindow={onOpenProjectorWindow}
-        />
+      {!isEmbedded && (
+        isProjectorOnly ? (
+          <div className="absolute bottom-3 right-3 z-50 flex items-center gap-2 opacity-30 hover:opacity-100 transition-opacity bg-slate-950/80 backdrop-blur-md px-3 py-1.5 rounded-2xl border border-slate-800 text-xs">
+            <span className="font-mono text-slate-400 font-bold">
+              {currentSlideIndex + 1}/{slides.length}
+            </span>
+            <span className="text-[10px] text-sky-400 font-semibold px-2 py-0.5 rounded bg-sky-500/10 border border-sky-500/20">
+              Telão Projetado
+            </span>
+            <button
+              onClick={handleToggleFullscreen}
+              className="text-slate-300 hover:text-white cursor-pointer px-1 py-0.5"
+              title="Tela Cheia"
+            >
+              ⛶
+            </button>
+          </div>
+        ) : (
+          <PresenterControlBar
+            currentSlideIndex={currentSlideIndex}
+            totalSlides={slides.length}
+            showAnswers={showAnswers}
+            timerActive={timerActive}
+            timerRemaining={timerRemaining}
+            onPrevSlide={onPrevSlide}
+            onNextSlide={onNextSlide}
+            onToggleShowAnswers={onToggleShowAnswers}
+            onToggleTimer={onToggleTimer}
+            onResetTimer={onResetTimer}
+            onOpenTeamManager={onOpenTeamManager}
+            onAddSimulatedParticipants={onAddSimulatedParticipants}
+            onToggleFullscreen={handleToggleFullscreen}
+            onSwitchToEditor={onSwitchToEditor}
+            onGoToLobby={() => onGoToSlide(0)}
+            onOpenProjectorWindow={onOpenProjectorWindow}
+          />
+        )
       )}
     </div>
   );
