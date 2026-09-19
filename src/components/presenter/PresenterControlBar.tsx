@@ -12,7 +12,8 @@ import {
   Bot,
   Maximize,
   Edit3,
-  QrCode
+  QrCode,
+  Tv
 } from 'lucide-react';
 
 interface PresenterControlBarProps {
@@ -31,6 +32,7 @@ interface PresenterControlBarProps {
   onToggleFullscreen: () => void;
   onSwitchToEditor: () => void;
   onGoToLobby: () => void;
+  onOpenProjectorWindow?: () => void;
 }
 
 export const PresenterControlBar: React.FC<PresenterControlBarProps> = ({
@@ -48,7 +50,8 @@ export const PresenterControlBar: React.FC<PresenterControlBarProps> = ({
   onAddSimulatedParticipants,
   onToggleFullscreen,
   onSwitchToEditor,
-  onGoToLobby
+  onGoToLobby,
+  onOpenProjectorWindow
 }) => {
   return (
     <div className="h-16 border-t border-slate-800 bg-slate-950/90 backdrop-blur-md px-4 sm:px-8 flex items-center justify-between z-40 shrink-0">
@@ -141,8 +144,19 @@ export const PresenterControlBar: React.FC<PresenterControlBarProps> = ({
         </button>
       </div>
 
-      {/* Right: Studio & Fullscreen */}
+      {/* Right: Studio, 2nd Screen & Fullscreen */}
       <div className="flex items-center gap-2">
+        {onOpenProjectorWindow && (
+          <button
+            onClick={onOpenProjectorWindow}
+            className="px-3 py-1.5 rounded-xl bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 text-xs font-semibold flex items-center gap-1.5 border border-sky-500/40 cursor-pointer shadow transition-all"
+            title="Abrir Telão da Apresentação em uma nova janela para projetar na 2ª Tela"
+          >
+            <Tv className="w-3.5 h-3.5 text-sky-400" />
+            <span className="hidden sm:inline">Projetar 2ª Tela</span>
+          </button>
+        )}
+
         <button
           onClick={onSwitchToEditor}
           className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1.5 border border-slate-700 cursor-pointer"

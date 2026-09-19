@@ -91,6 +91,24 @@ export const storageService = {
     }
   },
 
+  duplicateRoom(code: string): SavedRoom | null {
+    const original = this.getSavedRoom(code);
+    if (!original) return null;
+
+    const newPin = Math.floor(100000 + Math.random() * 900000).toString();
+    const clonedRoom: SavedRoom = {
+      ...original,
+      id: `room-${newPin}`,
+      roomCode: newPin,
+      roomTitle: `${original.roomTitle} (Cópia)`,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+
+    this.saveRoom(clonedRoom);
+    return clonedRoom;
+  },
+
   deleteRoom(code: string): void {
     if (typeof window === 'undefined') return;
     try {

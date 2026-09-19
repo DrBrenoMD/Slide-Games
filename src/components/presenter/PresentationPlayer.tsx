@@ -27,6 +27,7 @@ interface PresentationPlayerProps {
   imagePins: ImagePinSubmission[];
   termSubmissions: TermSubmission[];
   reactions: LiveReaction[];
+  isProjectorOnly?: boolean;
   onPrevSlide: () => void;
   onNextSlide: () => void;
   onGoToSlide: (index: number) => void;
@@ -36,6 +37,7 @@ interface PresentationPlayerProps {
   onOpenTeamManager: () => void;
   onAddSimulatedParticipants: () => void;
   onSwitchToEditor: () => void;
+  onOpenProjectorWindow?: () => void;
   onUpdateImpostorConfig: (config: Partial<ImpostorConfig>) => void;
   onStartImpostorVoting: () => void;
   onRevealImpostor: () => void;
@@ -57,6 +59,7 @@ export const PresentationPlayer: React.FC<PresentationPlayerProps> = ({
   imagePins,
   termSubmissions,
   reactions,
+  isProjectorOnly = false,
   onPrevSlide,
   onNextSlide,
   onGoToSlide,
@@ -66,6 +69,7 @@ export const PresentationPlayer: React.FC<PresentationPlayerProps> = ({
   onOpenTeamManager,
   onAddSimulatedParticipants,
   onSwitchToEditor,
+  onOpenProjectorWindow,
   onUpdateImpostorConfig,
   onStartImpostorVoting,
   onRevealImpostor,
@@ -234,24 +238,43 @@ export const PresentationPlayer: React.FC<PresentationPlayerProps> = ({
         </MotionSlideContainer>
       </div>
 
-      {/* Bottom Presenter Control Bar */}
-      <PresenterControlBar
-        currentSlideIndex={currentSlideIndex}
-        totalSlides={slides.length}
-        showAnswers={showAnswers}
-        timerActive={timerActive}
-        timerRemaining={timerRemaining}
-        onPrevSlide={onPrevSlide}
-        onNextSlide={onNextSlide}
-        onToggleShowAnswers={onToggleShowAnswers}
-        onToggleTimer={onToggleTimer}
-        onResetTimer={onResetTimer}
-        onOpenTeamManager={onOpenTeamManager}
-        onAddSimulatedParticipants={onAddSimulatedParticipants}
-        onToggleFullscreen={handleToggleFullscreen}
-        onSwitchToEditor={onSwitchToEditor}
-        onGoToLobby={() => onGoToSlide(0)}
-      />
+      {/* Bottom Presenter Control Bar OR Minimal Projector Bar */}
+      {isProjectorOnly ? (
+        <div className="absolute bottom-3 right-3 z-50 flex items-center gap-2 opacity-30 hover:opacity-100 transition-opacity bg-slate-950/80 backdrop-blur-md px-3 py-1.5 rounded-2xl border border-slate-800 text-xs">
+          <span className="font-mono text-slate-400 font-bold">
+            {currentSlideIndex + 1}/{slides.length}
+          </span>
+          <span className="text-[10px] text-sky-400 font-semibold px-2 py-0.5 rounded bg-sky-500/10 border border-sky-500/20">
+            Telão Projetado
+          </span>
+          <button
+            onClick={handleToggleFullscreen}
+            className="text-slate-300 hover:text-white cursor-pointer px-1 py-0.5"
+            title="Tela Cheia"
+          >
+            ⛶
+          </button>
+        </div>
+      ) : (
+        <PresenterControlBar
+          currentSlideIndex={currentSlideIndex}
+          totalSlides={slides.length}
+          showAnswers={showAnswers}
+          timerActive={timerActive}
+          timerRemaining={timerRemaining}
+          onPrevSlide={onPrevSlide}
+          onNextSlide={onNextSlide}
+          onToggleShowAnswers={onToggleShowAnswers}
+          onToggleTimer={onToggleTimer}
+          onResetTimer={onResetTimer}
+          onOpenTeamManager={onOpenTeamManager}
+          onAddSimulatedParticipants={onAddSimulatedParticipants}
+          onToggleFullscreen={handleToggleFullscreen}
+          onSwitchToEditor={onSwitchToEditor}
+          onGoToLobby={() => onGoToSlide(0)}
+          onOpenProjectorWindow={onOpenProjectorWindow}
+        />
+      )}
     </div>
   );
 };

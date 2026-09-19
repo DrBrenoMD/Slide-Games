@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { ROOM_TEMPLATES, RoomTemplate } from '../../data/templates';
+import React, { useState, useEffect } from 'react';
+import { ROOM_TEMPLATES } from '../../data/templates';
 import { Slide } from '../../types';
+import { storageService, SavedRoom } from '../../services/storage';
 import {
   Gamepad2,
   Sparkles,
@@ -12,11 +13,17 @@ import {
   PlusCircle,
   RefreshCw,
   Tv,
-  Users,
   Smartphone,
-  Check
+  Check,
+  Copy,
+  Trash2,
+  Layers,
+  Calendar,
+  ExternalLink,
+  Sliders,
+  FolderHeart
 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface HomePortalProps {
   currentRoomCode: string;
@@ -27,18 +34,23 @@ interface HomePortalProps {
     adminPassword: string;
     slides: Slide[];
   }) => void;
-  onOpenAdminLogin: () => void;
+  onOpenAdminLogin: (roomCode?: string) => void;
+  onProjectRoom: (roomCode: string) => void;
 }
 
 export const HomePortal: React.FC<HomePortalProps> = ({
   currentRoomCode,
   onJoinAsParticipant,
   onCreateRoom,
-  onOpenAdminLogin
+  onOpenAdminLogin,
+  onProjectRoom
 }) => {
   const [activeTab, setActiveTab] = useState<'options' | 'create'>('options');
   const [pinInput, setPinInput] = useState(currentRoomCode || '');
   const [pinError, setPinError] = useState('');
+  const [savedRooms, setSavedRooms] = useState<SavedRoom[]>([]);
+  const [copiedPin, setCopiedPin] = useState<string | null>(null);
+  const [deleteConfirmPin, setDeleteConfirmPin] = useState<string | null>(null);
 
   // Formulário de Criação de Sala
   const generateRandomPin = () => {
@@ -52,6 +64,20 @@ export const HomePortal: React.FC<HomePortalProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('full_show');
   const [createError, setCreateError] = useState('');
+
+  // Carrega lista de salas salvas
+  const refreshSavedRooms = () => {
+    try {
+      const rooms = storageService.getSavedRooms();
+      setSavedRooms(rooms);
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    refreshSavedRooms();
+  }, []);
 
   const handleQuickJoin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,14 +120,45 @@ export const HomePortal: React.FC<HomePortalProps> = ({
     });
   };
 
+  const handleCopyPin = (pin: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(pin);
+    setCopiedPin(pin);
+    setTimeout(() => setCopiedPin(null), 2000);
+  };
+
+  const handleDeleteRoom = (pin: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    storageService.deleteRoom(pin);
+    setDeleteConfirmPin(null);
+    refreshSavedRooms();
+  };
+
+  const handleDuplicateRoom = (pin: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    storageService.duplicateRoom(pin);
+    refreshSavedRooms();
+  };
+
+  const formatDate = (timestamp: number) => {
+    if (!timestamp) return '';
+    try {
+      const d = new Date(timestamp);
+      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return '';
+    }
+  };
+
   return (
-    <div className="min-h-screen w-full flex flex-col justify-between bg-slate-950 text-slate-100 relative overflow-hidden">
+    <div className="min-h-screen w-full flex flex-col justify-between bg-slate-950 text-slate-100 relative overflow-x-hidden">
       {/* Background ambient lighting effects */}
       <div className="absolute -top-40 -left-40 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-rose-600/20 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-1/2 -right-40 w-96 h-96 bg-rose-600/15 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-40 left-1/3 w-96 h-96 bg-sky-600/15 rounded-full blur-3xl pointer-events-none" />
 
       {/* Top Simple Header */}
-      <header className="w-full max-w-6xl mx-auto px-6 py-6 flex items-center justify-between z-10">
+      <header className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-5 flex items-center justify-between z-10">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center text-xl shadow-lg">
             ✨
@@ -111,31 +168,38 @@ export const HomePortal: React.FC<HomePortalProps> = ({
               ApresentaLive
             </span>
             <span className="text-[11px] text-slate-400 block -mt-1 font-medium">
-              Slides, Quizes & O Infiltrado ao Vivo
+              Slides Interativos, Quizes & O Infiltrado ao Vivo
             </span>
           </div>
         </div>
 
-        <button
-          onClick={onOpenAdminLogin}
-          className="px-3 py-1.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 text-xs font-semibold flex items-center gap-1.5 border border-slate-800 hover:border-slate-700 cursor-pointer transition-all"
-          title="Fazer login como administrador de uma sala já criada"
-        >
-          <Lock className="w-3.5 h-3.5 text-indigo-400" />
-          <span>Login do Administrador</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => onOpenAdminLogin()}
+            className="px-3.5 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 text-xs font-semibold flex items-center gap-1.5 border border-slate-800 hover:border-slate-700 cursor-pointer transition-all shadow"
+            title="Fazer login como administrador de uma sala já criada"
+          >
+            <Lock className="w-3.5 h-3.5 text-indigo-400" />
+            <span>Login do Apresentador</span>
+          </button>
+        </div>
       </header>
 
       {/* Main Content Area */}
-      <main className="w-full max-w-5xl mx-auto px-4 sm:px-6 py-6 my-auto z-10">
+      <main className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-6 z-10 space-y-10">
         {activeTab === 'options' ? (
-          <div className="space-y-8">
+          <div className="space-y-10">
+            {/* Hero Heading */}
             <div className="text-center space-y-3 max-w-2xl mx-auto">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-semibold">
+                <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Plataforma em Tempo Real para Telões & Celulares</span>
+              </div>
               <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight font-display">
                 O que você deseja fazer?
               </h1>
               <p className="text-sm sm:text-base text-slate-300">
-                Entre como jogador pelo celular para interagir ao vivo ou crie sua própria sala protegida por senha para comandar o telão.
+                Entre como jogador pelo celular para interagir ao vivo ou crie sua sala protegida para comandar a apresentação e projetar no telão.
               </p>
             </div>
 
@@ -243,6 +307,178 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                   </div>
                 </div>
               </motion.div>
+            </div>
+
+            {/* SEÇÃO DE SALAS SALVAS (Solicitado: Apresente as salas salvas na tela inicial) */}
+            <div className="max-w-5xl mx-auto space-y-4 pt-4">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1.5 rounded-xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30">
+                    <FolderHeart className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-white tracking-tight">
+                      Salas & Apresentações Salvas
+                    </h2>
+                    <p className="text-xs text-slate-400">
+                      Acesse diretamente suas apresentações anteriores, projete em 2ª tela ou compartilhe o PIN
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setActiveTab('create')}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 border border-slate-700 cursor-pointer transition-all"
+                >
+                  <PlusCircle className="w-3.5 h-3.5 text-rose-400" />
+                  <span>Nova Sala</span>
+                </button>
+              </div>
+
+              {savedRooms.length === 0 ? (
+                <div className="p-8 rounded-3xl bg-slate-900/50 border border-slate-800 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mx-auto text-slate-500">
+                    <FolderHeart className="w-6 h-6" />
+                  </div>
+                  <p className="text-sm text-slate-400">Nenhuma sala personalizada salva ainda.</p>
+                  <button
+                    onClick={() => {
+                      storageService.initDefaultRooms();
+                      refreshSavedRooms();
+                    }}
+                    className="px-4 py-2 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 text-xs font-bold border border-indigo-500/40 cursor-pointer"
+                  >
+                    Restaurar Sala Padrão de Exemplo
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {savedRooms.map((room) => {
+                    const isDeleting = deleteConfirmPin === room.roomCode;
+                    return (
+                      <div
+                        key={room.id || room.roomCode}
+                        className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800 hover:border-indigo-500/50 transition-all shadow-xl backdrop-blur-md flex flex-col justify-between space-y-4 group relative"
+                      >
+                        {/* Header do Card da Sala */}
+                        <div>
+                          <div className="flex items-start justify-between gap-2">
+                            <h3 className="font-bold text-white text-base line-clamp-1 group-hover:text-indigo-300 transition-colors">
+                              {room.roomTitle || 'Apresentação'}
+                            </h3>
+                            <button
+                              onClick={(e) => handleCopyPin(room.roomCode, e)}
+                              className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-700 hover:border-indigo-500 font-mono text-xs text-indigo-400 font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                              title="Copiar Código PIN"
+                            >
+                              <span>PIN: {room.roomCode}</span>
+                              {copiedPin === room.roomCode ? (
+                                <Check className="w-3 h-3 text-emerald-400" />
+                              ) : (
+                                <Copy className="w-3 h-3 text-slate-400" />
+                              )}
+                            </button>
+                          </div>
+
+                          {/* Metadados: Slides e Data */}
+                          <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-2">
+                            <span className="flex items-center gap-1">
+                              <Layers className="w-3.5 h-3.5 text-sky-400" />
+                              {room.slides?.length || 0} slides
+                            </span>
+                            {room.updatedAt && (
+                              <span className="flex items-center gap-1">
+                                <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                                {formatDate(room.updatedAt)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Ações Rápidas: Apresentar, Projetar em 2ª Tela, Jogar */}
+                        <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                          <div className="grid grid-cols-2 gap-2">
+                            {/* Botão: Abrir como Apresentador */}
+                            <button
+                              onClick={() => onOpenAdminLogin(room.roomCode)}
+                              className="py-2 px-2.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-200 border border-indigo-500/40 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+                              title="Acessar console de apresentador com senha"
+                            >
+                              <Lock className="w-3 h-3 text-indigo-400" />
+                              <span>Apresentar</span>
+                            </button>
+
+                            {/* Botão: Projetar em 2ª Tela */}
+                            <button
+                              onClick={() => onProjectRoom(room.roomCode)}
+                              className="py-2 px-2.5 rounded-xl bg-sky-600/20 hover:bg-sky-600/30 text-sky-200 border border-sky-500/40 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+                              title="Abrir o Telão da Apresentação em uma janela separada para projetar"
+                            >
+                              <Tv className="w-3 h-3 text-sky-400" />
+                              <span>Projetar (2ª Tela)</span>
+                            </button>
+                          </div>
+
+                          <div className="flex items-center justify-between gap-2 pt-1 text-[11px]">
+                            {/* Jogar como Convidado */}
+                            <button
+                              onClick={() => onJoinAsParticipant(room.roomCode)}
+                              className="text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer"
+                            >
+                              <Gamepad2 className="w-3 h-3 text-indigo-400" />
+                              <span>Jogar no Celular</span>
+                            </button>
+
+                            <div className="flex items-center gap-2">
+                              {/* Duplicar */}
+                              <button
+                                onClick={(e) => handleDuplicateRoom(room.roomCode, e)}
+                                className="text-slate-400 hover:text-slate-200 cursor-pointer p-1 rounded hover:bg-slate-800"
+                                title="Duplicar Sala"
+                              >
+                                <Copy className="w-3.5 h-3.5" />
+                              </button>
+
+                              {/* Excluir com confirmação */}
+                              {isDeleting ? (
+                                <div className="flex items-center gap-1 bg-rose-950/80 px-2 py-0.5 rounded-lg border border-rose-700">
+                                  <span className="text-[10px] text-rose-300">Excluir?</span>
+                                  <button
+                                    onClick={(e) => handleDeleteRoom(room.roomCode, e)}
+                                    className="text-rose-400 font-bold hover:text-rose-200 cursor-pointer px-1"
+                                  >
+                                    Sim
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setDeleteConfirmPin(null);
+                                    }}
+                                    className="text-slate-400 hover:text-white cursor-pointer px-1"
+                                  >
+                                    Não
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeleteConfirmPin(room.roomCode);
+                                  }}
+                                  className="text-slate-500 hover:text-rose-400 cursor-pointer p-1 rounded hover:bg-slate-800 transition-colors"
+                                  title="Excluir Sala"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         ) : (
@@ -411,7 +647,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                   className="flex-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-98 text-white font-bold text-sm shadow-xl flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Sparkles className="w-4 h-4" />
-                  <span>Criar Sala & Abrir Editor de Slides</span>
+                  <span>Criar Sala & Abrir Editor</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
@@ -421,9 +657,9 @@ export const HomePortal: React.FC<HomePortalProps> = ({
       </main>
 
       {/* Bottom Footer */}
-      <footer className="w-full max-w-6xl mx-auto px-6 py-4 flex items-center justify-between text-xs text-slate-500 border-t border-slate-900 z-10">
+      <footer className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between text-xs text-slate-500 border-t border-slate-900 z-10">
         <div>ApresentaLive • Plataforma Interativa em Tempo Real</div>
-        <div>Totalmente responsivo para Telões & Celulares</div>
+        <div>Projeção em 2ª Tela & Celulares Sincronizados</div>
       </footer>
     </div>
   );

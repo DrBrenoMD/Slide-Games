@@ -25,7 +25,8 @@ export const LobbySlideRenderer: React.FC<LobbySlideRendererProps> = ({
   onStartPresentation,
   onOpenTeamManager
 }) => {
-  const joinUrl = `${appUrl || window.location.origin}?pin=${roomCode}`;
+  const defaultBase = typeof window !== 'undefined' ? window.location.href.split('?')[0].split('#')[0] : '';
+  const joinUrl = `${appUrl || defaultBase}?pin=${roomCode}`;
 
   return (
     <div className="w-full h-full flex flex-col items-center justify-between p-6 sm:p-10 max-w-7xl mx-auto">

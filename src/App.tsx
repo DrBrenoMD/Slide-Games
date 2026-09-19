@@ -49,6 +49,7 @@ export default function App() {
   // Controle principal de tela inicial / visão (4 Telas: Apresentação, Apresentador, Configurações, Participantes)
   const [appView, setAppView] = useState<AppView>('portal');
   const [pendingTargetView, setPendingTargetView] = useState<'presenter' | 'settings' | null>(null);
+  const [isProjectorMode, setIsProjectorMode] = useState<boolean>(false);
 
   // Papel do usuário nesta aba: 'presenter' | 'participant'
   const [role, setRole] = useState<'presenter' | 'participant'>('participant');
@@ -85,6 +86,18 @@ export default function App() {
   // Referência para timer interval
   const timerRef = useRef<any>(null);
 
+  // Função para abrir o Telão da Apresentação em uma nova janela / 2ª Tela
+  const handleOpenProjectorWindow = (targetPin: string = roomCode) => {
+    const cleanPin = targetPin.trim().toUpperCase() || roomCode;
+    const baseUrl = typeof window !== 'undefined' ? window.location.href.split('?')[0].split('#')[0] : '';
+    const url = `${baseUrl}?view=presentation&pin=${cleanPin}&projector=true`;
+    window.open(
+      url,
+      `ApresentaLive_Telao_${cleanPin}`,
+      'popup=yes,width=1280,height=720,menubar=no,toolbar=no,location=no,status=no,resizable=yes'
+    );
+  };
+
   // Carrega a sala salva ativa no armazenamento local ou inicializa
   useEffect(() => {
     try {
@@ -105,18 +118,40 @@ export default function App() {
     }
   }, []);
 
-  // Detecta parâmetros de URL ao carregar (ex: ?pin=749201 ou ?role=guest)
+  // Detecta parâmetros de URL ao carregar (ex: ?pin=749201 ou ?view=presentation&projector=true)
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const urlPin = params.get('pin');
+      const urlView = params.get('view');
+      const isProj = params.get('projector') === 'true';
       const urlRole = params.get('role');
 
       if (urlPin) {
         const cleanPin = urlPin.replace(/\s+/g, '').toUpperCase();
         setRoomCode(cleanPin);
-        setRole('participant');
-        setAppView('participants');
+
+        // Se houver dados locais salvos desta sala, carrega
+        const saved = storageService.getSavedRoom(cleanPin);
+        if (saved) {
+          setRoomTitle(saved.roomTitle);
+          setPresenterPassword(saved.presenterPassword);
+          if (saved.slides && saved.slides.length > 0) setSlides(saved.slides);
+          if (saved.teams && saved.teams.length > 0) setTeams(saved.teams);
+          if (saved.teamMode) setTeamMode(saved.teamMode);
+        }
+
+        if (urlView === 'presentation' || isProj) {
+          setAppView('presentation');
+          setIsProjectorMode(true);
+          setRole('participant'); // Modo observador/projetor
+        } else {
+          setRole('participant');
+          setAppView('participants');
+        }
+      } else if (urlView === 'presentation') {
+        setAppView('presentation');
+        if (isProj) setIsProjectorMode(true);
       } else if (urlRole === 'guest') {
         setRole('participant');
         setAppView('participants');
@@ -126,8 +161,8 @@ export default function App() {
 
   // Configura o roomCode no serviço de tempo real
   useEffect(() => {
-    realtimeService.setRoomCode(roomCode);
-  }, [roomCode]);
+    realtimeService.setRoomCode(roomCode, role);
+  }, [roomCode, role]);
 
   // Inicializa o timer quando o slide muda
   useEffect(() => {
@@ -331,7 +366,7 @@ export default function App() {
         });
       }
 
-      // 7. Sincronização geral de estado recebida pelo Participante
+      // 7. Sincronização geral de estado recebida pelo Participante ou Projetor
       if (msg.type === 'SYNC_STATE' && role === 'participant' && msg.payload) {
         const data = msg.payload;
         if (data.currentSlideIndex !== undefined) setCurrentSlideIndex(data.currentSlideIndex);
@@ -340,13 +375,66 @@ export default function App() {
         if (data.timerActive !== undefined) setTimerActive(data.timerActive);
         if (data.teams) setTeams(data.teams);
         if (data.teamMode) setTeamMode(data.teamMode);
-        if (data.slides) setSlides(data.slides);
+        if (data.slides && data.slides.length > 0) setSlides(data.slides);
         if (data.participants) setParticipants(data.participants);
+      }
+
+      // 8. Troca de slide direta
+      if (msg.type === 'CHANGE_SLIDE' && role === 'participant' && msg.payload) {
+        if (msg.payload.currentSlideIndex !== undefined) {
+          setCurrentSlideIndex(msg.payload.currentSlideIndex);
+        }
+        if (msg.payload.showAnswers !== undefined) {
+          setShowAnswers(msg.payload.showAnswers);
+        }
+        if (msg.payload.timeLimitSeconds !== undefined) {
+          setTimerRemaining(msg.payload.timeLimitSeconds);
+        }
+      }
+
+      // 9. Tique do cronômetro
+      if (msg.type === 'TIMER_TICK' && role === 'participant' && msg.payload) {
+        if (msg.payload.remaining !== undefined) {
+          setTimerRemaining(msg.payload.remaining);
+          setTimerActive(true);
+        }
+      }
+
+      // 10. Cronômetro esgotado
+      if (msg.type === 'TIMER_EXPIRED' && role === 'participant') {
+        setTimerRemaining(0);
+        setTimerActive(false);
+        setShowAnswers(true);
+      }
+
+      // 11. Solicitação de estado completo (novo participante ou projetor conectou)
+      if (msg.type === 'REQUEST_FULL_STATE' && role === 'presenter') {
+        realtimeService.broadcast('SYNC_STATE', roomCode, 'presenter', {
+          currentSlideIndex,
+          showAnswers,
+          timerRemaining,
+          timerActive,
+          teams,
+          teamMode,
+          slides,
+          participants
+        });
       }
     });
 
     return () => unsubscribe();
-  }, [role, slides, currentSlideIndex, timerRemaining, participants]);
+  }, [
+    role,
+    slides,
+    currentSlideIndex,
+    timerRemaining,
+    timerActive,
+    showAnswers,
+    teams,
+    teamMode,
+    participants,
+    roomCode
+  ]);
 
   // Ação de entrada de participante local
   const handleJoinParticipant = (data: {
@@ -736,10 +824,36 @@ export default function App() {
             setIsPresenterAuthenticated(true);
             setRole('presenter');
             setAppView('settings'); // Abre direto na tela de configurações/editor
+            
+            const newRoom: SavedRoom = {
+              id: `room-${data.roomCode}`,
+              roomCode: data.roomCode,
+              roomTitle: data.roomTitle,
+              presenterPassword: data.adminPassword,
+              slides: data.slides,
+              teamMode,
+              teams,
+              createdAt: Date.now(),
+              updatedAt: Date.now()
+            };
+            storageService.saveRoom(newRoom);
+            storageService.setActiveRoomCode(data.roomCode);
           }}
-          onOpenAdminLogin={() => {
+          onOpenAdminLogin={(pin) => {
+            if (pin) {
+              setRoomCode(pin);
+              const saved = storageService.getSavedRoom(pin);
+              if (saved) {
+                setRoomTitle(saved.roomTitle);
+                setPresenterPassword(saved.presenterPassword);
+                if (saved.slides && saved.slides.length > 0) setSlides(saved.slides);
+              }
+            }
             setPendingTargetView('presenter');
             setIsLoginModalOpen(true);
+          }}
+          onProjectRoom={(pin) => {
+            handleOpenProjectorWindow(pin);
           }}
         />
 
@@ -846,6 +960,17 @@ export default function App() {
 
         {/* Informações da Sala e Status */}
         <div className="flex items-center gap-2 sm:gap-3">
+          {/* Botão Projetar 2ª Tela */}
+          <button
+            id="btn-project-second-screen"
+            onClick={() => handleOpenProjectorWindow()}
+            className="px-2.5 py-1 rounded-lg bg-sky-950/40 border border-sky-600/40 hover:bg-sky-900/60 font-semibold text-xs text-sky-300 flex items-center gap-1.5 cursor-pointer transition-all shadow-sm"
+            title="Abrir a tela de apresentação em uma nova janela para o projetor / 2ª Tela"
+          >
+            <Tv className="w-3.5 h-3.5 text-sky-400" />
+            <span className="hidden md:inline">Projetar 2ª Tela</span>
+          </button>
+
           {/* PIN Badge */}
           <button
             id="btn-copy-pin"
@@ -924,6 +1049,8 @@ export default function App() {
             imagePins={imagePins}
             termSubmissions={termSubmissions}
             reactions={reactions}
+            isProjectorOnly={isProjectorMode}
+            onOpenProjectorWindow={() => handleOpenProjectorWindow(roomCode)}
             onPrevSlide={handlePrevSlide}
             onNextSlide={handleNextSlide}
             onGoToSlide={handleGoToSlide}
@@ -990,6 +1117,7 @@ export default function App() {
               answersSubmitted={answersSubmitted}
               imagePins={imagePins}
               termSubmissions={termSubmissions}
+              onOpenProjectorWindow={() => handleOpenProjectorWindow(roomCode)}
               onPrevSlide={handlePrevSlide}
               onNextSlide={handleNextSlide}
               onGoToSlide={handleGoToSlide}

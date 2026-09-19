@@ -60,6 +60,7 @@ interface PresenterConsoleProps {
   onResetImpostorGame: () => void;
   onOpenPresentationScreen: () => void;
   onOpenSettingsScreen: () => void;
+  onOpenProjectorWindow?: () => void;
 }
 
 export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
@@ -87,7 +88,8 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
   onRevealImpostor,
   onResetImpostorGame,
   onOpenPresentationScreen,
-  onOpenSettingsScreen
+  onOpenSettingsScreen,
+  onOpenProjectorWindow
 }) => {
   const currentSlide = slides[currentSlideIndex] || slides[0];
   const [hideSecrets, setHideSecrets] = useState(false);
@@ -229,11 +231,22 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
           <button
             onClick={onOpenPresentationScreen}
             className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
-            title="Visualizar Telão de Apresentação (Público)"
+            title="Visualizar Telão de Apresentação nesta mesma aba"
           >
             <Tv className="w-3.5 h-3.5 text-indigo-400" />
             <span>Ver Telão</span>
           </button>
+
+          {onOpenProjectorWindow && (
+            <button
+              onClick={onOpenProjectorWindow}
+              className="px-3.5 py-1.5 rounded-xl bg-sky-600/20 hover:bg-sky-600/30 text-sky-200 border border-sky-500/40 text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow transition-all"
+              title="Abrir Telão da Apresentação em uma nova janela para projetar na 2ª Tela (Projetor/TV)"
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-sky-400" />
+              <span>Projetar (2ª Tela)</span>
+            </button>
+          )}
 
           <button
             onClick={onOpenSettingsScreen}
