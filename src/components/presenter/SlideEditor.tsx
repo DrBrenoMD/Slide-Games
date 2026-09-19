@@ -57,16 +57,18 @@ interface SlideEditorProps {
   roomCode?: string;
   roomTitle?: string;
   presenterPassword?: string;
+  roomPassword?: string;
   teamMode?: TeamMode;
   teams?: Team[];
   onUpdateRoomSettings?: (settings: {
     roomTitle?: string;
     presenterPassword?: string;
+    roomPassword?: string;
     teamMode?: TeamMode;
     teams?: Team[];
   }) => void;
   onLoadSavedRoom?: (room: SavedRoom) => void;
-  onCreateNewRoom?: (title: string, pin: string, password: string) => void;
+  onCreateNewRoom?: (title: string, pin: string, password: string, roomPassword?: string) => void;
   onLoadPresentation?: (pres: SavedPresentation) => void;
 }
 
@@ -80,6 +82,7 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
   roomCode = '749201',
   roomTitle = 'Gincana & Slides Interativos',
   presenterPassword = '1234',
+  roomPassword = '',
   teamMode = 'random',
   teams = PRESET_TEAMS,
   onUpdateRoomSettings,
@@ -98,6 +101,7 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
   const [isNewSlideModalOpen, setIsNewSlideModalOpen] = useState(false);
   const [isThemeGalleryOpen, setIsThemeGalleryOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showParticipantPassword, setShowParticipantPassword] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSavingCloud, setIsSavingCloud] = useState(false);
 
@@ -112,11 +116,16 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
   const [newRoomTitle, setNewRoomTitle] = useState('');
   const [newRoomPin, setNewRoomPin] = useState('');
   const [newRoomPass, setNewRoomPass] = useState('');
+  const [newRoomRequireParticipantPass, setNewRoomRequireParticipantPass] = useState(false);
+  const [newRoomParticipantPass, setNewRoomParticipantPass] = useState('');
+  const [newRoomError, setNewRoomError] = useState('');
   const [isCreatingRoomModal, setIsCreatingRoomModal] = useState(false);
 
   // Estados locais para edição das configurações do apresentador
   const [tempRoomTitle, setTempRoomTitle] = useState(roomTitle);
   const [tempPassword, setTempPassword] = useState(presenterPassword);
+  const [tempRequireRoomPassword, setTempRequireRoomPassword] = useState(Boolean(roomPassword && roomPassword.trim()));
+  const [tempRoomPassword, setTempRoomPassword] = useState(roomPassword || '');
   const [tempTeamMode, setTempTeamMode] = useState<TeamMode>(teamMode);
   const [tempTeams, setTempTeams] = useState<Team[]>(teams);
 
@@ -124,9 +133,11 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
   useEffect(() => {
     setTempRoomTitle(roomTitle);
     setTempPassword(presenterPassword);
+    setTempRequireRoomPassword(Boolean(roomPassword && roomPassword.trim()));
+    setTempRoomPassword(roomPassword || '');
     setTempTeamMode(teamMode);
     setTempTeams(teams);
-  }, [roomTitle, presenterPassword, teamMode, teams]);
+  }, [roomTitle, presenterPassword, roomPassword, teamMode, teams]);
 
   // Carrega salas salvas no carregamento
   useEffect(() => {
@@ -223,11 +234,38 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
 
   // Salvar a sala atual no storage local
   const handleSaveCurrentRoom = () => {
+    const cleanTitle = tempRoomTitle.trim();
+    if (!cleanTitle) {
+      showToast('⚠️ O título da sala não pode ficar vazio.');
+      return;
+    }
+
+    // Validação de unicidade do título
+    if (storageService.isRoomTitleTaken(cleanTitle, roomCode)) {
+      showToast(`⚠️ Já existe outra sala cadastrada com o nome "${cleanTitle}". Escolha um nome exclusivo.`);
+      return;
+    }
+
+    // Validação de senha dos participantes
+    let finalRoomPassword: string | undefined = undefined;
+    if (tempRequireRoomPassword) {
+      if (!tempRoomPassword.trim()) {
+        showToast('⚠️ Defina a senha para os participantes ou desative a proteção.');
+        return;
+      }
+      if (tempRoomPassword.trim() === tempPassword.trim()) {
+        showToast('⚠️ A senha de participantes deve ser diferente da senha do apresentador/admin.');
+        return;
+      }
+      finalRoomPassword = tempRoomPassword.trim();
+    }
+
     const currentData: SavedRoom = {
       id: `room-${roomCode}`,
       roomCode,
-      roomTitle: tempRoomTitle,
+      roomTitle: cleanTitle,
       presenterPassword: tempPassword,
+      roomPassword: finalRoomPassword,
       slides,
       teamMode: tempTeamMode,
       teams: tempTeams,
@@ -239,31 +277,63 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
     refreshSavedRooms();
     if (onUpdateRoomSettings) {
       onUpdateRoomSettings({
-        roomTitle: tempRoomTitle,
+        roomTitle: cleanTitle,
         presenterPassword: tempPassword,
+        roomPassword: finalRoomPassword,
         teamMode: tempTeamMode,
         teams: tempTeams
       });
     }
-    showToast(`✓ Sala "${tempRoomTitle}" salva no dispositivo!`);
+    showToast(`✓ Sala "${cleanTitle}" salva com sucesso!`);
   };
 
   // Criar nova sala
   const handleCreateRoomSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newRoomTitle.trim()) return;
-    const pin = newRoomPin.trim() || String(Math.floor(100000 + Math.random() * 900000));
+    setNewRoomError('');
+    const cleanTitle = newRoomTitle.trim();
+    if (!cleanTitle) {
+      setNewRoomError('Por favor, informe o título da sala.');
+      return;
+    }
+
+    // Validação de unicidade do título da sala
+    if (storageService.isRoomTitleTaken(cleanTitle)) {
+      setNewRoomError(`Já existe uma sala cadastrada com o nome "${cleanTitle}". Escolha um nome exclusivo.`);
+      return;
+    }
+
+    const pin = newRoomPin.trim() || storageService.generateUniqueRoomCode();
+    if (storageService.isRoomCodeTaken(pin)) {
+      setNewRoomError(`O PIN "${pin}" já está em uso por outra sala. Digite outro ou deixe em branco para gerar automaticamente.`);
+      return;
+    }
+
     const pass = newRoomPass.trim() || '1234';
 
+    let participantPass: string | undefined = undefined;
+    if (newRoomRequireParticipantPass) {
+      if (!newRoomParticipantPass.trim()) {
+        setNewRoomError('Por favor, defina a senha para os participantes.');
+        return;
+      }
+      if (newRoomParticipantPass.trim() === pass.trim()) {
+        setNewRoomError('A senha de participantes deve ser diferente da senha de Admin/Apresentador.');
+        return;
+      }
+      participantPass = newRoomParticipantPass.trim();
+    }
+
     if (onCreateNewRoom) {
-      onCreateNewRoom(newRoomTitle.trim(), pin, pass);
+      onCreateNewRoom(cleanTitle, pin, pass, participantPass);
     } else {
       const defaultSlide = createDefaultSlide('content_cover', 0);
       const newRoom: SavedRoom = {
         id: `room-${pin}`,
         roomCode: pin,
-        roomTitle: newRoomTitle.trim(),
+        roomTitle: cleanTitle,
         presenterPassword: pass,
+        roomPassword: participantPass,
         slides: [defaultSlide],
         teamMode: 'random',
         teams: PRESET_TEAMS,
@@ -280,7 +350,10 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
     setNewRoomTitle('');
     setNewRoomPin('');
     setNewRoomPass('');
-    showToast(`✓ Nova sala "${newRoomTitle}" criada!`);
+    setNewRoomRequireParticipantPass(false);
+    setNewRoomParticipantPass('');
+    setNewRoomError('');
+    showToast(`✓ Nova sala "${cleanTitle}" criada!`);
   };
 
   // Carregar sala salva selecionada
@@ -1321,6 +1394,56 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
                   Exigida para acessar o Console do Apresentador e a Tela de Configurações.
                 </span>
               </div>
+
+              {/* Senha dos Participantes (Opcional) */}
+              <div className="pt-3 border-t border-slate-800/80">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
+                    <Lock className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Senha de Acesso para Participantes</span>
+                  </label>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={tempRequireRoomPassword}
+                      onChange={(e) => {
+                        setTempRequireRoomPassword(e.target.checked);
+                        if (!e.target.checked) setTempRoomPassword('');
+                      }}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                  </label>
+                </div>
+
+                {tempRequireRoomPassword ? (
+                  <div className="space-y-1.5 animate-in fade-in">
+                    <div className="flex items-center gap-2 max-w-sm">
+                      <input
+                        type={showParticipantPassword ? 'text' : 'password'}
+                        value={tempRoomPassword}
+                        onChange={(e) => setTempRoomPassword(e.target.value)}
+                        placeholder="Ex: festa2026"
+                        className="flex-1 px-3.5 py-2 rounded-xl bg-slate-800 border border-indigo-500/50 text-white font-mono text-sm font-bold focus:outline-none focus:border-indigo-400"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowParticipantPassword(!showParticipantPassword)}
+                        className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-bold cursor-pointer"
+                      >
+                        {showParticipantPassword ? 'Ocultar' : 'Exibir'}
+                      </button>
+                    </div>
+                    <span className="text-[10px] text-amber-400/90 block font-medium">
+                      ⚠️ A senha de participantes deve ser diferente da senha do Admin/Apresentador.
+                    </span>
+                  </div>
+                ) : (
+                  <span className="text-[10px] text-slate-500 block">
+                    Desativada: Qualquer usuário que digitar o PIN pode entrar diretamente na sala.
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Bloco 2: Modo de Times & Gerenciamento de Equipes */}
@@ -1836,6 +1959,13 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
             </div>
 
             <form onSubmit={handleCreateRoomSubmit} className="space-y-4">
+              {newRoomError && (
+                <div className="p-3 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-200 text-xs font-semibold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                  <span>{newRoomError}</span>
+                </div>
+              )}
+
               <div>
                 <label className="text-xs font-bold text-slate-300 block mb-1">
                   Título da Sala:
@@ -1844,7 +1974,10 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
                   type="text"
                   required
                   value={newRoomTitle}
-                  onChange={(e) => setNewRoomTitle(e.target.value)}
+                  onChange={(e) => {
+                    setNewRoomTitle(e.target.value);
+                    if (newRoomError) setNewRoomError('');
+                  }}
                   placeholder="Ex: Treinamento / Gincana"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-white text-sm font-bold focus:outline-none focus:border-indigo-500"
                 />
@@ -1858,7 +1991,10 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
                   <input
                     type="text"
                     value={newRoomPin}
-                    onChange={(e) => setNewRoomPin(e.target.value)}
+                    onChange={(e) => {
+                      setNewRoomPin(e.target.value);
+                      if (newRoomError) setNewRoomError('');
+                    }}
                     placeholder="Auto gerado"
                     maxLength={6}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono text-sm focus:outline-none focus:border-indigo-500"
@@ -1871,11 +2007,50 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
                   <input
                     type="text"
                     value={newRoomPass}
-                    onChange={(e) => setNewRoomPass(e.target.value)}
+                    onChange={(e) => {
+                      setNewRoomPass(e.target.value);
+                      if (newRoomError) setNewRoomError('');
+                    }}
                     placeholder="1234"
                     className="w-full px-3.5 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono text-sm focus:outline-none focus:border-indigo-500"
                   />
                 </div>
+              </div>
+
+              {/* Senha dos participantes para a nova sala */}
+              <div className="pt-2 border-t border-slate-800">
+                <label className="flex items-center gap-2 cursor-pointer mb-2">
+                  <input
+                    type="checkbox"
+                    checked={newRoomRequireParticipantPass}
+                    onChange={(e) => {
+                      setNewRoomRequireParticipantPass(e.target.checked);
+                      if (newRoomError) setNewRoomError('');
+                    }}
+                    className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-700 bg-slate-800"
+                  />
+                  <span className="text-xs font-bold text-indigo-300">
+                    Proteger entrada de participantes com senha
+                  </span>
+                </label>
+
+                {newRoomRequireParticipantPass && (
+                  <div className="space-y-1 animate-in fade-in">
+                    <input
+                      type="text"
+                      value={newRoomParticipantPass}
+                      onChange={(e) => {
+                        setNewRoomParticipantPass(e.target.value);
+                        if (newRoomError) setNewRoomError('');
+                      }}
+                      placeholder="Senha dos participantes (ex: jogo123)"
+                      className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-indigo-500/50 text-white font-mono text-xs focus:outline-none focus:border-indigo-400"
+                    />
+                    <span className="text-[10px] text-amber-400/90 block">
+                      Deve ser diferente da senha do Admin ({newRoomPass || '1234'}).
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2">

@@ -19,7 +19,8 @@ import {
   Gamepad2,
   ChevronDown,
   ChevronUp,
-  Maximize2
+  Maximize2,
+  LogOut
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -35,6 +36,7 @@ interface ParticipantViewProps {
   onSendReaction: (emoji: string) => void;
   onImpostorVote: (suspectId: string) => void;
   allParticipants: Participant[];
+  onLeaveRoom?: () => void;
 }
 
 export const ParticipantView: React.FC<ParticipantViewProps> = ({
@@ -48,7 +50,8 @@ export const ParticipantView: React.FC<ParticipantViewProps> = ({
   onSubmitTerm,
   onSendReaction,
   onImpostorVote,
-  allParticipants
+  allParticipants,
+  onLeaveRoom
 }) => {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [textInput, setTextInput] = useState('');
@@ -211,14 +214,29 @@ export const ParticipantView: React.FC<ParticipantViewProps> = ({
           <span className="text-[10px] font-mono font-semibold text-slate-500">
             {currentSlideIndex + 1}/{totalSlides}
           </span>
+
+          {onLeaveRoom && (
+            <button
+              onClick={() => {
+                if (window.confirm('Deseja realmente sair da sala e da apresentação?')) {
+                  onLeaveRoom();
+                }
+              }}
+              className="p-1.5 sm:px-2.5 sm:py-1 rounded-xl bg-slate-800/80 hover:bg-rose-950/70 border border-slate-700 hover:border-rose-500/50 text-slate-400 hover:text-rose-300 text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+              title="Sair da sala"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Sair</span>
+            </button>
+          )}
         </div>
       </header>
 
       {/* Center Dynamic Body */}
       <main className="flex-1 p-3 sm:p-5 flex flex-col justify-start max-w-xl mx-auto w-full space-y-4">
-        {/* SLIDE DE CONTEÚDO (APRESENTAÇÃO COMPLETA RENDERIZADA NA TELA DO PARTICIPANTE) */}
+        {/* SLIDE DE CONTEÚDO (APRESENTAÇÃO COMPLETA RENDERIZADA NA TELA DO PARTICIPANTE EM 16:9) */}
         {isContentSlide && (
-          <div className="w-full bg-slate-900/90 border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-2xl min-h-[380px] flex items-center justify-center">
+          <div className="w-full aspect-video max-w-xl mx-auto bg-slate-900/90 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl flex items-center justify-center relative">
             <ContentSlideRenderer slide={currentSlide} />
           </div>
         )}
@@ -237,45 +255,45 @@ export const ParticipantView: React.FC<ParticipantViewProps> = ({
           </div>
         )}
 
-        {/* MODO TELÃO COMPLETO QUANDO ATIVADO PELO PARTICIPANTE */}
+        {/* MODO TELÃO COMPLETO QUANDO ATIVADO PELO PARTICIPANTE (EM CONTAINER RESPONSIVO 16:9) */}
         {showFullTelao && !isContentSlide && !isLeaderboardSlide && (
-          <div className="w-full bg-slate-900 border border-indigo-500/40 rounded-3xl p-4 sm:p-6 shadow-2xl space-y-4 animate-in fade-in duration-200">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-2">
-                <Tv className="w-4 h-4 text-indigo-400" />
-                <span className="text-xs font-extrabold uppercase tracking-wider text-indigo-300">
+          <div className="w-full aspect-video max-w-xl mx-auto bg-slate-900 border border-indigo-500/40 rounded-3xl p-3 sm:p-4 shadow-2xl overflow-y-auto space-y-2 animate-in fade-in duration-200">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <div className="flex items-center gap-1.5">
+                <Tv className="w-3.5 h-3.5 text-indigo-400" />
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-indigo-300">
                   Tela da Apresentação
                 </span>
               </div>
               <button
                 onClick={() => setShowFullTelao(false)}
-                className="text-xs text-slate-400 hover:text-white px-2 py-1 rounded-lg bg-slate-800 border border-slate-700 cursor-pointer"
+                className="text-[10px] font-bold text-slate-400 hover:text-white px-2 py-0.5 rounded-lg bg-slate-800 border border-slate-700 cursor-pointer"
               >
                 Voltar aos Controles
               </button>
             </div>
 
-            <div className="space-y-3">
-              <h2 className="text-xl sm:text-2xl font-black text-white leading-snug">
+            <div className="space-y-2">
+              <h2 className="text-base sm:text-lg font-black text-white leading-snug">
                 {currentSlide.title}
               </h2>
               {currentSlide.subtitle && (
-                <p className="text-sm text-slate-300 font-medium">{currentSlide.subtitle}</p>
+                <p className="text-xs text-slate-300 font-medium">{currentSlide.subtitle}</p>
               )}
               {currentSlide.imageUrl && (
-                <div className="rounded-2xl overflow-hidden border border-slate-800 max-h-56">
-                  <img src={currentSlide.imageUrl} alt={currentSlide.title} className="w-full h-auto object-cover" />
+                <div className="rounded-xl overflow-hidden border border-slate-800 max-h-28">
+                  <img src={currentSlide.imageUrl} alt={currentSlide.title} className="w-full h-auto object-cover max-h-28" />
                 </div>
               )}
               {currentSlide.options && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
+                <div className="grid grid-cols-2 gap-1.5 pt-1">
                   {currentSlide.options.map((opt, idx) => (
                     <div
                       key={opt.id}
-                      className="p-3 rounded-2xl flex items-center gap-2.5 text-white font-bold text-xs shadow-md"
+                      className="p-2 rounded-xl flex items-center gap-1.5 text-white font-bold text-[11px] shadow-sm"
                       style={{ backgroundColor: opt.color || defaultColors[idx % defaultColors.length] }}
                     >
-                      <span className="text-base">{opt.icon || geometricIcons[idx % geometricIcons.length]}</span>
+                      <span className="text-xs">{opt.icon || geometricIcons[idx % geometricIcons.length]}</span>
                       <span className="truncate">{opt.text}</span>
                     </div>
                   ))}
@@ -285,10 +303,10 @@ export const ParticipantView: React.FC<ParticipantViewProps> = ({
           </div>
         )}
 
-        {/* TELA DE APRESENTAÇÃO COMPACTA SINCRONIZADA NO TOPO (EXIBE SLIDE, IMAGEM E PERGUNTA) */}
+        {/* TELA DE APRESENTAÇÃO COMPACTA SINCRONIZADA NO TOPO (EXIBE SLIDE, IMAGEM E PERGUNTA) EM 16:9 */}
         {!showFullTelao && !isContentSlide && !isLeaderboardSlide && currentSlide.type !== 'content_qrcode_lobby' && (
-          <div className="w-full bg-slate-900/90 border border-slate-800 rounded-3xl p-3.5 sm:p-4 shadow-xl space-y-2.5">
-            <div className="flex items-center justify-between text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+          <div className="w-full aspect-video max-w-xl mx-auto bg-slate-900/90 border border-slate-800 rounded-3xl p-3 sm:p-4 shadow-xl flex flex-col justify-between overflow-hidden relative">
+            <div className="flex items-center justify-between text-[10px] font-extrabold uppercase tracking-wider text-slate-400 shrink-0">
               <span className="flex items-center gap-1 text-indigo-400">
                 <Tv className="w-3 h-3" />
                 <span>Telão Sincronizado</span>
@@ -298,15 +316,17 @@ export const ParticipantView: React.FC<ParticipantViewProps> = ({
               </span>
             </div>
 
-            <h3 className="text-base sm:text-lg font-black text-white leading-snug">
-              {currentSlide.title}
-            </h3>
+            <div className="flex-1 flex flex-col justify-center my-1 overflow-hidden">
+              <h3 className="text-sm sm:text-base font-black text-white leading-snug line-clamp-2">
+                {currentSlide.title}
+              </h3>
 
-            {currentSlide.imageUrl && (
-              <div className="rounded-2xl overflow-hidden border border-slate-800 max-h-40">
-                <img src={currentSlide.imageUrl} alt={currentSlide.title} className="w-full h-auto object-cover max-h-40" />
-              </div>
-            )}
+              {currentSlide.imageUrl && (
+                <div className="rounded-xl overflow-hidden border border-slate-800 mt-2 max-h-24 sm:max-h-28 shrink-0">
+                  <img src={currentSlide.imageUrl} alt={currentSlide.title} className="w-full h-full object-cover max-h-24 sm:max-h-28" />
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -544,43 +564,74 @@ export const ParticipantView: React.FC<ParticipantViewProps> = ({
           currentSlide.type.startsWith('game_impostor') &&
           (() => {
             const impostorConfig = currentSlide.impostorConfig;
-            const myNameLower = (participant.name || '').trim().toLowerCase();
             
-            const isImpostor =
-              (impostorConfig?.impostorParticipantIds || []).includes(participant.id) ||
-              participant.isImpostor === true ||
-              allParticipants.some(
-                (p) =>
-                  p.name.trim().toLowerCase() === myNameLower &&
-                  ((impostorConfig?.impostorParticipantIds || []).includes(p.id) || p.isImpostor === true)
-              );
+            // Se a partida ainda não foi iniciada pelo apresentador, aguardar na tela de espera
+            if (!impostorConfig?.gameStarted) {
+              return (
+                <div className="space-y-4 w-full text-center">
+                  <div className="p-6 sm:p-8 rounded-3xl bg-slate-900/90 border border-slate-800 shadow-2xl backdrop-blur-md space-y-4">
+                    <div className="w-16 h-16 mx-auto rounded-3xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-3xl shadow-lg">
+                      🕵️
+                    </div>
+                    <div className="space-y-1">
+                      <span className="px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-[10px] font-black uppercase tracking-wider inline-block">
+                        Aguardando Início da Partida
+                      </span>
+                      <h3 className="text-xl font-black text-white">
+                        O Infiltrado
+                      </h3>
+                      <p className="text-xs text-slate-400 max-w-xs mx-auto">
+                        O apresentador está preparando a partida, selecionando a palavra e definindo os agentes.
+                      </p>
+                    </div>
 
-            const isAgent =
-              (impostorConfig?.agentParticipantIds || []).includes(participant.id) ||
-              participant.isAgent === true ||
-              allParticipants.some(
-                (p) =>
-                  p.name.trim().toLowerCase() === myNameLower &&
-                  ((impostorConfig?.agentParticipantIds || []).includes(p.id) || p.isAgent === true)
-              );
+                    <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 text-xs text-slate-300 space-y-0.5">
+                      <span className="text-slate-500 block text-[10px] font-bold uppercase tracking-wider">Tema da Rodada</span>
+                      <span className="text-indigo-300 font-mono font-black text-sm">{impostorConfig?.category || 'Geral'}</span>
+                    </div>
 
-            const hasBeenAssigned =
-              (impostorConfig?.impostorParticipantIds?.length || 0) > 0 ||
-              (impostorConfig?.agentParticipantIds?.length || 0) > 0;
+                    <div className="flex items-center justify-center gap-2 text-xs text-emerald-400 font-semibold pt-1">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                      <span>Conectado como {participant.name}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            const myNameLower = (participant.name || '').trim().toLowerCase();
+            const myId = participant.id;
+            const impostorIds = impostorConfig?.impostorParticipantIds || [];
+            const agentIds = impostorConfig?.agentParticipantIds || [];
+            const eliminatedIds = impostorConfig?.eliminatedIds || [];
+
+            // Identificação unívoca por ID (com fallback por nome se reconexão)
+            let isImpostor = impostorIds.includes(myId);
+            if (!isImpostor && impostorIds.length > 0) {
+              const matchedByName = allParticipants.find(p => p.name.trim().toLowerCase() === myNameLower && impostorIds.includes(p.id));
+              if (matchedByName) isImpostor = true;
+            }
+
+            let isAgent = agentIds.includes(myId);
+            if (!isAgent && agentIds.length > 0) {
+              const matchedByName = allParticipants.find(p => p.name.trim().toLowerCase() === myNameLower && agentIds.includes(p.id));
+              if (matchedByName) isAgent = true;
+            }
+
+            const hasBeenAssigned = impostorIds.length > 0 || agentIds.length > 0;
             const isInvestigator =
               impostorConfig?.mode === 'investigator' && !isAgent && !isImpostor;
             const revealWordToInvestigators = impostorConfig?.revealWordToInvestigators ?? false;
-            const eliminatedIds = impostorConfig?.eliminatedIds || [];
             const isEliminated =
-              eliminatedIds.includes(participant.id) ||
+              eliminatedIds.includes(myId) ||
               allParticipants.some(
                 (p) => p.name.trim().toLowerCase() === myNameLower && eliminatedIds.includes(p.id)
               );
 
             // Candidatos a suspeitos para votação (excluindo os já eliminados)
             const candidateIds = new Set([
-              ...(impostorConfig?.agentParticipantIds || []),
-              ...(impostorConfig?.impostorParticipantIds || [])
+              ...agentIds,
+              ...impostorIds
             ]);
 
             const suspects = allParticipants.filter((p) => {

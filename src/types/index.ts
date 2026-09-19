@@ -232,6 +232,7 @@ export interface SlideElement {
 }
 
 export interface ImpostorConfig {
+  gameStarted?: boolean; // Se o jogo foi iniciado pelo apresentador (só então participantes vêem as palavras/papéis)
   mode: 'classic' | 'investigator';
   category: string;
   secretWord: string;
@@ -357,6 +358,7 @@ export interface SavedRoom {
   participantsCount: number;
   roomPassword?: string; // Senha para os participantes entrarem (opcional)
   bannedParticipantIds?: string[];
+  bannedParticipantNames?: string[];
   status: 'active' | 'closed' | 'archived';
   createdAt: string;
   updatedAt: string;
@@ -367,6 +369,7 @@ export interface RoomState {
   presenterPassword: string;
   roomPassword?: string; // Senha da sala para participantes
   bannedParticipantIds?: string[];
+  bannedParticipantNames?: string[];
   presentationTitle: string;
   currentSlideIndex: number;
   state: 'lobby' | 'presenting' | 'finished';

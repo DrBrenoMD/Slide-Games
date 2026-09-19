@@ -45,7 +45,10 @@ service cloud.firestore {
         && data.roomCode is string
         && data.roomCode.size() <= 20
         && data.presentationTitle is string
-        && data.presentationTitle.size() <= 200;
+        && data.presentationTitle.size() <= 200
+        && (!('roomPassword' in data) || (data.roomPassword is string && data.roomPassword.size() <= 100))
+        && (!('bannedParticipantIds' in data) || (data.bannedParticipantIds is list && data.bannedParticipantIds.size() <= 1000))
+        && (!('bannedParticipantNames' in data) || (data.bannedParticipantNames is list && data.bannedParticipantNames.size() <= 1000));
     }
 
     // User profiles

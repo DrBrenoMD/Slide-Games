@@ -24,22 +24,22 @@ export const ContentSlideRenderer: React.FC<ContentSlideRendererProps> = ({ slid
   // Renderizador para Slide de Capa / Título
   if (type === 'content_cover') {
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center p-8 sm:p-16 text-center max-w-5xl mx-auto relative z-10">
+      <div className="w-full h-full flex flex-col items-center justify-center p-3 sm:p-6 md:p-10 text-center max-w-5xl mx-auto relative z-10 overflow-hidden">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.7 }}
-          className="space-y-6"
+          className="space-y-3 sm:space-y-5 my-auto"
         >
           <div
-            className="w-16 h-16 mx-auto rounded-3xl flex items-center justify-center text-3xl shadow-2xl border backdrop-blur-md"
+            className="w-10 h-10 sm:w-14 sm:h-14 mx-auto rounded-2xl sm:rounded-3xl flex items-center justify-center text-xl sm:text-2xl shadow-xl border backdrop-blur-md"
             style={themeStyles.badgeStyle}
           >
-            <Sparkles className="w-8 h-8" style={{ color: themeStyles.accentColor }} />
+            <Sparkles className="w-5 h-5 sm:w-7 sm:h-7" style={{ color: themeStyles.accentColor }} />
           </div>
 
           <h1
-            className="text-4xl sm:text-7xl font-black tracking-tight leading-tight"
+            className="text-2xl sm:text-4xl md:text-6xl font-black tracking-tight leading-tight"
             style={themeStyles.titleStyle}
           >
             {title}
@@ -47,7 +47,7 @@ export const ContentSlideRenderer: React.FC<ContentSlideRendererProps> = ({ slid
 
           {subtitle && (
             <p
-              className="text-xl sm:text-3xl font-bold max-w-2xl mx-auto"
+              className="text-sm sm:text-lg md:text-2xl font-bold max-w-2xl mx-auto"
               style={themeStyles.subtitleStyle}
             >
               {subtitle}
@@ -56,7 +56,7 @@ export const ContentSlideRenderer: React.FC<ContentSlideRendererProps> = ({ slid
 
           {content && (
             <div
-              className="max-w-xl mx-auto p-5 rounded-2xl border text-base leading-relaxed backdrop-blur-md shadow-lg"
+              className="max-w-xl mx-auto p-3 sm:p-4 rounded-xl sm:rounded-2xl border text-xs sm:text-sm md:text-base leading-relaxed backdrop-blur-md shadow-lg"
               style={{
                 ...themeStyles.cardStyle,
                 color: slide.theme?.textColor || '#FFFFFF',
@@ -74,27 +74,27 @@ export const ContentSlideRenderer: React.FC<ContentSlideRendererProps> = ({ slid
   // Renderizador para Citação / Frase de Impacto
   if (type === 'content_quote') {
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center p-8 sm:p-16 text-center max-w-4xl mx-auto relative z-10">
+      <div className="w-full h-full flex flex-col items-center justify-center p-4 sm:p-8 md:p-12 text-center max-w-4xl mx-auto relative z-10 overflow-hidden">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
-          className="relative p-8 sm:p-12 rounded-3xl border shadow-2xl backdrop-blur-xl"
+          className="relative p-5 sm:p-8 md:p-10 rounded-2xl sm:rounded-3xl border shadow-2xl backdrop-blur-xl my-auto w-full"
           style={themeStyles.cardStyle}
         >
           <Quote
-            className="w-16 h-16 mx-auto mb-4 opacity-40"
+            className="w-8 h-8 sm:w-12 sm:h-12 mx-auto mb-2 sm:mb-4 opacity-40"
             style={{ color: themeStyles.accentColor }}
           />
           <blockquote
-            className="text-2xl sm:text-5xl font-black leading-snug italic"
+            className="text-lg sm:text-2xl md:text-4xl font-black leading-snug italic"
             style={themeStyles.titleStyle}
           >
             "{title || content}"
           </blockquote>
           {quoteAuthor && (
             <div
-              className="mt-6 font-bold text-lg sm:text-xl tracking-widest uppercase"
+              className="mt-3 sm:mt-5 font-bold text-xs sm:text-sm md:text-base tracking-widest uppercase"
               style={themeStyles.subtitleStyle}
             >
               — {quoteAuthor}
@@ -108,18 +108,18 @@ export const ContentSlideRenderer: React.FC<ContentSlideRendererProps> = ({ slid
   // Renderizador para Mídia / Imagem com Texto
   if (type === 'content_media') {
     return (
-      <div className="w-full h-full flex flex-col justify-center p-6 sm:p-12 max-w-6xl mx-auto relative z-10">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-          <div className="space-y-4">
+      <div className="w-full h-full flex flex-col justify-center p-4 sm:p-8 max-w-6xl mx-auto relative z-10 overflow-hidden">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 items-center my-auto">
+          <div className="space-y-2 sm:space-y-3">
             <h2
-              className="text-3xl sm:text-5xl font-black tracking-tight"
+              className="text-xl sm:text-3xl md:text-4xl font-black tracking-tight"
               style={themeStyles.titleStyle}
             >
               {title}
             </h2>
             {subtitle && (
               <p
-                className="font-bold text-base sm:text-lg"
+                className="font-bold text-xs sm:text-sm md:text-base"
                 style={themeStyles.subtitleStyle}
               >
                 {subtitle}
@@ -127,7 +127,7 @@ export const ContentSlideRenderer: React.FC<ContentSlideRendererProps> = ({ slid
             )}
             {content && (
               <div
-                className="p-5 rounded-2xl border text-sm sm:text-base leading-relaxed backdrop-blur-md"
+                className="p-3 sm:p-4 rounded-xl sm:rounded-2xl border text-xs sm:text-sm leading-relaxed backdrop-blur-md"
                 style={themeStyles.cardStyle}
               >
                 {content}
@@ -136,16 +136,16 @@ export const ContentSlideRenderer: React.FC<ContentSlideRendererProps> = ({ slid
           </div>
 
           <div
-            className="rounded-3xl overflow-hidden shadow-2xl border-2 max-h-[420px]"
+            className="rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl border-2 max-h-[160px] sm:max-h-[260px] md:max-h-[340px]"
             style={{
               borderColor: themeStyles.accentColor,
               backgroundColor: slide.theme?.cardBackgroundColor || 'rgba(15,23,42,0.8)'
             }}
           >
             {imageUrl ? (
-              <img src={imageUrl} alt={title} className="w-full h-full object-cover" />
+              <img src={imageUrl} alt={title} className="w-full h-full object-cover max-h-[160px] sm:max-h-[260px] md:max-h-[340px]" />
             ) : (
-              <div className="w-full h-64 flex items-center justify-center text-slate-500 font-bold">
+              <div className="w-full h-36 sm:h-48 flex items-center justify-center text-slate-500 font-bold text-xs sm:text-sm">
                 Sem imagem
               </div>
             )}
@@ -157,24 +157,24 @@ export const ContentSlideRenderer: React.FC<ContentSlideRendererProps> = ({ slid
 
   // Padrão: Tópicos / Bullets / Instruções com entrada escalonada
   return (
-    <div className="w-full h-full flex flex-col justify-center p-6 sm:p-12 max-w-5xl mx-auto relative z-10">
-      <div className="space-y-3 mb-8">
+    <div className="w-full h-full flex flex-col justify-center p-4 sm:p-8 max-w-5xl mx-auto relative z-10 overflow-hidden">
+      <div className="space-y-1.5 sm:space-y-2 mb-3 sm:mb-5">
         <div
-          className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full border text-xs font-bold uppercase tracking-wider backdrop-blur-md"
+          className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full border text-[10px] sm:text-xs font-bold uppercase tracking-wider backdrop-blur-md"
           style={themeStyles.badgeStyle}
         >
-          <Layers className="w-3.5 h-3.5" style={{ color: themeStyles.accentColor }} />
+          <Layers className="w-3 h-3" style={{ color: themeStyles.accentColor }} />
           <span>Slide de Conteúdo</span>
         </div>
         <h2
-          className="text-3xl sm:text-5xl font-black tracking-tight"
+          className="text-xl sm:text-3xl md:text-4xl font-black tracking-tight"
           style={themeStyles.titleStyle}
         >
           {title}
         </h2>
         {subtitle && (
           <p
-            className="text-base sm:text-xl font-bold"
+            className="text-xs sm:text-sm md:text-base font-bold"
             style={themeStyles.subtitleStyle}
           >
             {subtitle}
@@ -183,18 +183,18 @@ export const ContentSlideRenderer: React.FC<ContentSlideRendererProps> = ({ slid
       </div>
 
       {bullets && bullets.length > 0 && (
-        <div className="space-y-3.5">
+        <div className="space-y-2 sm:space-y-3">
           {bullets.map((bullet, idx) => (
             <motion.div
               key={idx}
               initial={{ opacity: 0, x: -30 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: idx * 0.15, duration: 0.5 }}
-              className="flex items-start gap-4 p-4 rounded-2xl border shadow-lg backdrop-blur-md transition-all hover:scale-[1.01]"
+              className="flex items-start gap-2.5 sm:gap-3.5 p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl border shadow-lg backdrop-blur-md transition-all hover:scale-[1.01]"
               style={themeStyles.cardStyle}
             >
               <div
-                className="w-7 h-7 rounded-xl flex items-center justify-center font-black text-xs shrink-0 mt-0.5 border shadow"
+                className="w-5 h-5 sm:w-6 sm:h-6 rounded-lg sm:rounded-xl flex items-center justify-center font-black text-[10px] sm:text-xs shrink-0 mt-0.5 border shadow"
                 style={{
                   backgroundColor: themeStyles.accentColor,
                   color: '#FFFFFF',
@@ -204,7 +204,7 @@ export const ContentSlideRenderer: React.FC<ContentSlideRendererProps> = ({ slid
                 {idx + 1}
               </div>
               <span
-                className="text-base sm:text-lg font-medium leading-relaxed"
+                className="text-xs sm:text-sm md:text-base font-medium leading-relaxed"
                 style={{
                   color: slide.theme?.textColor || '#FFFFFF',
                   fontFamily: themeStyles.fontFamily
@@ -219,7 +219,7 @@ export const ContentSlideRenderer: React.FC<ContentSlideRendererProps> = ({ slid
 
       {content && !bullets && (
         <div
-          className="p-6 rounded-3xl border text-base sm:text-lg leading-relaxed shadow-xl backdrop-blur-md"
+          className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl border text-xs sm:text-sm md:text-base leading-relaxed shadow-xl backdrop-blur-md"
           style={{
             ...themeStyles.cardStyle,
             color: slide.theme?.textColor || '#FFFFFF',

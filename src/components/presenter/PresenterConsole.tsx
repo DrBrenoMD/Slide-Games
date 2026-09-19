@@ -60,6 +60,7 @@ interface PresenterConsoleProps {
   onToggleTimer: () => void;
   onResetTimer: () => void;
   onAddSimulatedParticipants: () => void;
+  onStartImpostorGame?: () => void;
   onUpdateImpostorConfig: (config: Partial<ImpostorConfig>) => void;
   onStartImpostorVoting: () => void;
   onRevealImpostor: () => void;
@@ -102,6 +103,7 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
   onToggleTimer,
   onResetTimer,
   onAddSimulatedParticipants,
+  onStartImpostorGame,
   onUpdateImpostorConfig,
   onStartImpostorVoting,
   onRevealImpostor,
@@ -134,6 +136,8 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
   const [changeWordOnNextRound, setChangeWordOnNextRound] = useState(true);
   const [showLiveScreen, setShowLiveScreen] = useState(true);
   const [isPresentationPreviewExpanded, setIsPresentationPreviewExpanded] = useState(false);
+  const [manualWordInput, setManualWordInput] = useState('');
+  const [showManualWordField, setShowManualWordField] = useState(false);
 
   // Modo Apresentador Também Joga (Local & Persistido)
   const [isPresenterPlayingLocal, setIsPresenterPlayingLocal] = useState<boolean>(() => {
@@ -304,6 +308,45 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
       : (cat ? cat.words : ['Moisés', 'Davi', 'Salomão']);
     const newWord = wordsPool[Math.floor(Math.random() * wordsPool.length)];
     onUpdateImpostorConfig({ secretWord: newWord });
+  };
+
+  const currentCategoryObj = PRESET_WORD_CATEGORIES.find((c) => c.name === impostorConfig.category) || PRESET_WORD_CATEGORIES[0];
+  const categoryWordsList = impostorConfig.customWordList && impostorConfig.customWordList.length > 0
+    ? impostorConfig.customWordList
+    : (currentCategoryObj?.words || []);
+
+  const handleSelectWordFromList = (word: string) => {
+    if (!word) return;
+    onUpdateImpostorConfig({ secretWord: word });
+  };
+
+  const handleApplyManualWord = () => {
+    if (!manualWordInput.trim()) return;
+    onUpdateImpostorConfig({ secretWord: manualWordInput.trim() });
+    setManualWordInput('');
+    setShowManualWordField(false);
+  };
+
+  const handleStartGame = () => {
+    if (onStartImpostorGame) {
+      onStartImpostorGame();
+    } else {
+      let wordToUse = impostorConfig.secretWord?.trim();
+      if (!wordToUse) {
+        const wordsPool = categoryWordsList.length > 0 ? categoryWordsList : ['Moisés', 'Davi', 'Salomão'];
+        wordToUse = wordsPool[Math.floor(Math.random() * wordsPool.length)] || 'Moisés';
+      }
+      onUpdateImpostorConfig({
+        gameStarted: true,
+        secretWord: wordToUse,
+        revealState: 'words_shown',
+        votingActive: false,
+        votes: {},
+        currentRound: 1,
+        eliminatedIds: [],
+        winner: undefined
+      });
+    }
   };
 
   // Sortear agentes e infiltrados automaticamente de forma rápida baseando-se na proporção
@@ -685,44 +728,47 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
           </div>
 
           {showLiveScreen && (
-            <div
-              className={`w-full overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl relative transition-all duration-300 ${
-                isPresentationPreviewExpanded ? 'h-[520px]' : 'h-[340px]'
-              }`}
-            >
-              <PresentationPlayer
-                slides={slides}
-                currentSlideIndex={currentSlideIndex}
-                roomCode={roomCode}
-                appUrl={typeof window !== 'undefined' ? window.location.href.split('?')[0].split('#')[0] : ''}
-                participants={participants}
-                teams={teams}
-                teamMode={teamMode}
-                showAnswers={showAnswers}
-                timerActive={timerActive}
-                timerRemaining={timerRemaining}
-                answersSubmitted={answersSubmitted}
-                imagePins={imagePins}
-                termSubmissions={termSubmissions}
-                reactions={[]}
-                isProjectorOnly={true}
-                isEmbedded={true}
-                onPrevSlide={onPrevSlide}
-                onNextSlide={onNextSlide}
-                onGoToSlide={onGoToSlide}
-                onToggleShowAnswers={onToggleShowAnswers}
-                onToggleTimer={onToggleTimer}
-                onResetTimer={onResetTimer}
-                onOpenTeamManager={() => {}}
-                onAddSimulatedParticipants={onAddSimulatedParticipants}
-                onSwitchToEditor={onOpenSettingsScreen}
-                onUpdateImpostorConfig={onUpdateImpostorConfig}
-                onStartImpostorVoting={onStartImpostorVoting}
-                onRevealImpostor={onRevealImpostor}
-                onResetImpostorGame={onResetImpostorGame}
-                onAdvanceToNextRound={onAdvanceToNextRound}
-                onStartNewMatch={onStartNewMatch}
-              />
+            <div className="w-full flex items-center justify-center">
+              <div
+                className={`w-full ${
+                  isPresentationPreviewExpanded ? 'max-w-6xl' : 'max-w-4xl'
+                } aspect-video overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl relative transition-all duration-300`}
+              >
+                <PresentationPlayer
+                  slides={slides}
+                  currentSlideIndex={currentSlideIndex}
+                  roomCode={roomCode}
+                  appUrl={typeof window !== 'undefined' ? window.location.href.split('?')[0].split('#')[0] : ''}
+                  participants={participants}
+                  teams={teams}
+                  teamMode={teamMode}
+                  showAnswers={showAnswers}
+                  timerActive={timerActive}
+                  timerRemaining={timerRemaining}
+                  answersSubmitted={answersSubmitted}
+                  imagePins={imagePins}
+                  termSubmissions={termSubmissions}
+                  reactions={[]}
+                  isProjectorOnly={true}
+                  isEmbedded={true}
+                  onPrevSlide={onPrevSlide}
+                  onNextSlide={onNextSlide}
+                  onGoToSlide={onGoToSlide}
+                  onToggleShowAnswers={onToggleShowAnswers}
+                  onToggleTimer={onToggleTimer}
+                  onResetTimer={onResetTimer}
+                  onOpenTeamManager={() => {}}
+                  onAddSimulatedParticipants={onAddSimulatedParticipants}
+                  onSwitchToEditor={onOpenSettingsScreen}
+                  onStartImpostorGame={onStartImpostorGame}
+                  onUpdateImpostorConfig={onUpdateImpostorConfig}
+                  onStartImpostorVoting={onStartImpostorVoting}
+                  onRevealImpostor={onRevealImpostor}
+                  onResetImpostorGame={onResetImpostorGame}
+                  onAdvanceToNextRound={onAdvanceToNextRound}
+                  onStartNewMatch={onStartNewMatch}
+                />
+              </div>
             </div>
           )}
         </div>
@@ -971,70 +1017,184 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
                 </div>
               ) : (
                 /* MODO PADRÃO DE ADMIN OU OVERRIDE (COM VISIBILIDADE DE TODOS OS SEGREDOS) */
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Palavra Secreta */}
-                  <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-bold text-slate-400 block mb-1">
-                        Palavra Secreta (Agentes e Civis):
-                      </span>
-                      <span className="text-2xl font-black text-emerald-400 font-mono tracking-wide">
-                        {hideSecrets ? '••••••••' : impostorConfig.secretWord || '(Nenhuma selecionada)'}
-                      </span>
-                    </div>
-                    <button
-                      onClick={handleRandomizeWord}
-                      className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold flex items-center gap-1 cursor-pointer"
-                      title="Sortear outra palavra para esta rodada"
-                    >
-                      <Shuffle className="w-4 h-4" />
-                      <span className="hidden sm:inline">Sortear</span>
-                    </button>
-                  </div>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Palavra Secreta - Seleção da Lista, Sorteio ou Digitação Manual */}
+                    <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-400 block">
+                          Palavra Secreta (Agentes e Civis):
+                        </span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-black uppercase tracking-wider ${
+                          impostorConfig.secretWord
+                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                            : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                        }`}>
+                          {impostorConfig.secretWord ? 'Palavra Definida' : 'Aguardando Escolha'}
+                        </span>
+                      </div>
 
-                  {/* Infiltrado Sorteado */}
-                  <div className="p-4 rounded-2xl bg-rose-950/30 border border-rose-500/50 flex flex-wrap items-center justify-between gap-3">
-                    <div className="space-y-1">
-                      <span className="text-xs font-bold text-rose-300 block">
-                        🚨 Infiltrado Sorteado (Não sabe a palavra):
-                      </span>
-                      <div className="flex flex-wrap items-center gap-2">
-                        {impostorParticipants.length > 0 ? (
-                          impostorParticipants.map((p) => (
-                            <div key={p.id} className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-rose-900/40 border border-rose-500/40">
-                              <span className="text-xl">{p.avatar}</span>
-                              <span className="text-sm font-black text-rose-200">
-                                {hideSecrets ? '••••••••' : p.name}
-                              </span>
-                            </div>
-                          ))
-                        ) : (
-                          <span className="text-xs text-amber-300 font-bold">
-                            Nenhum infiltrado definido ainda nesta rodada.
-                          </span>
-                        )}
+                      <div className="flex items-center justify-between gap-3 bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                        <span className="text-xl sm:text-2xl font-black text-emerald-400 font-mono tracking-wide truncate">
+                          {hideSecrets ? '••••••••' : impostorConfig.secretWord || '(Nenhuma palavra definida)'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleRandomizeWord}
+                          className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer border border-slate-700 transition-colors shrink-0"
+                          title="Sortear uma palavra aleatória da lista do tema"
+                        >
+                          <Shuffle className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Sortear</span>
+                        </button>
+                      </div>
+
+                      {/* Controles de Escolha da Palavra: Da Lista ou Manual */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                        {/* Selecionar da Lista */}
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                            Selecionar da Lista ({categoryWordsList.length}):
+                          </label>
+                          <select
+                            value={impostorConfig.secretWord || ''}
+                            onChange={(e) => handleSelectWordFromList(e.target.value)}
+                            className="w-full px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-slate-200 font-medium focus:outline-none focus:border-indigo-500 cursor-pointer"
+                          >
+                            <option value="">-- Escolher palavra --</option>
+                            {categoryWordsList.map((w) => (
+                              <option key={w} value={w}>
+                                {w}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Digitar Manualmente */}
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                            Ou Digitar Manualmente:
+                          </label>
+                          <div className="flex gap-1.5">
+                            <input
+                              type="text"
+                              placeholder="Ex: Moisés..."
+                              value={manualWordInput}
+                              onChange={(e) => setManualWordInput(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleApplyManualWord();
+                              }}
+                              className="w-full px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleApplyManualWord}
+                              className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold cursor-pointer transition-colors"
+                            >
+                              Ok
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      {impostorParticipants.length === 0 && (
+                    {/* Infiltrado Sorteado */}
+                    <div className="p-4 rounded-2xl bg-rose-950/30 border border-rose-500/50 flex flex-col justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-rose-300 block">
+                            🚨 Infiltrado Sorteado (Não sabe a palavra):
+                          </span>
+                          <span className="text-xs text-rose-400 font-bold">
+                            {impostorParticipants.length} definido{impostorParticipants.length === 1 ? '' : 's'}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 min-h-[44px]">
+                          {impostorParticipants.length > 0 ? (
+                            impostorParticipants.map((p) => (
+                              <div key={p.id} className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-rose-900/40 border border-rose-500/40">
+                                <span className="text-xl">{p.avatar}</span>
+                                <span className="text-sm font-black text-rose-200">
+                                  {hideSecrets ? '••••••••' : p.name}
+                                </span>
+                              </div>
+                            ))
+                          ) : (
+                            <span className="text-xs text-amber-300 font-bold">
+                              Nenhum infiltrado definido ainda nesta rodada.
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-1 border-t border-rose-500/20">
                         <button
                           type="button"
                           onClick={handleAutoRaffleAgentsAndImpostor}
-                          className="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer shadow animate-bounce"
+                          className="flex-1 px-3 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-black flex items-center justify-center gap-1.5 cursor-pointer shadow transition-colors"
                           title="Sortear automaticamente os agentes e infiltrados entre os participantes"
                         >
                           <Shuffle className="w-3.5 h-3.5" />
-                          <span>Sortear</span>
+                          <span>Sortear Papéis</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsAgentModalOpen(true)}
+                          className="flex-1 px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow transition-colors"
+                        >
+                          <Users className="w-3.5 h-3.5" />
+                          <span>Definir Agentes</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Banner / Card de Início do Jogo */}
+                  <div className={`p-4 rounded-2xl border-2 flex flex-wrap items-center justify-between gap-4 transition-all ${
+                    !impostorConfig.gameStarted
+                      ? 'bg-gradient-to-r from-emerald-950/60 via-slate-900 to-indigo-950/60 border-emerald-500/60 shadow-xl'
+                      : 'bg-slate-950/60 border-slate-800'
+                  }`}>
+                    <div className="space-y-1 max-w-md">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2.5 h-2.5 rounded-full ${!impostorConfig.gameStarted ? 'bg-amber-400 animate-ping' : 'bg-emerald-400'}`} />
+                        <span className={`text-xs font-black uppercase tracking-wider ${!impostorConfig.gameStarted ? 'text-amber-300' : 'text-emerald-300'}`}>
+                          {!impostorConfig.gameStarted ? 'Fase de Preparação (Aguardando Início)' : 'Partida em Andamento'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-300">
+                        {!impostorConfig.gameStarted
+                          ? 'Os participantes estão na tela de espera. Selecione a palavra, defina os agentes e clique no botão para iniciar e liberar nos celulares!'
+                          : 'A palavra e os papéis já foram transmitidos aos participantes. Controle as pistas e a votação abaixo.'}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {!impostorConfig.gameStarted ? (
+                        <button
+                          type="button"
+                          onClick={handleStartGame}
+                          className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-sm shadow-xl shadow-emerald-950/50 cursor-pointer flex items-center gap-2 transition-transform active:scale-95 animate-pulse"
+                        >
+                          <Sparkles className="w-5 h-5" />
+                          <span>▶ Iniciar Jogo do Infiltrado</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (onStartNewMatch) {
+                              onStartNewMatch();
+                            } else {
+                              onResetImpostorGame();
+                            }
+                          }}
+                          className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" />
+                          <span>Reiniciar Partida</span>
                         </button>
                       )}
-                      <button
-                        onClick={() => setIsAgentModalOpen(true)}
-                        className="px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold flex items-center gap-1 cursor-pointer shadow"
-                      >
-                        <Shuffle className="w-3.5 h-3.5" />
-                        <span>{impostorParticipants.length > 0 ? 'Mudar' : 'Selecionar'}</span>
-                      </button>
                     </div>
                   </div>
                 </div>
@@ -1380,7 +1540,15 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
               {/* Botões de Ação Dinâmica quando NÃO em round_elimination */}
               {impostorConfig.revealState !== 'round_elimination' && (
                 <div className="flex flex-wrap items-center gap-3">
-                  {!impostorConfig.votingActive ? (
+                  {!impostorConfig.gameStarted ? (
+                    <button
+                      onClick={handleStartGame}
+                      className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-sm shadow-xl shadow-emerald-950/50 cursor-pointer flex items-center gap-2 transition-transform active:scale-95 animate-pulse"
+                    >
+                      <Sparkles className="w-5 h-5" />
+                      <span>▶ Iniciar Jogo do Infiltrado</span>
+                    </button>
+                  ) : !impostorConfig.votingActive ? (
                     <>
                       <button
                         onClick={handleAdvanceRound}

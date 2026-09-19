@@ -66,6 +66,7 @@ export default function App() {
   const [roomCode, setRoomCode] = useState<string>(DEFAULT_ROOM_CODE);
   const [roomTitle, setRoomTitle] = useState<string>('Gincana & Slides Interativos');
   const [presenterPassword, setPresenterPassword] = useState<string>(DEFAULT_PRESENTER_PASSWORD);
+  const [roomPassword, setRoomPassword] = useState<string | undefined>(undefined);
   const [slides, setSlides] = useState<Slide[]>(SAMPLE_PRESENTATION_SLIDES);
   const [currentSlideIndex, setCurrentSlideIndex] = useState<number>(0);
   const [teams, setTeams] = useState<Team[]>(PRESET_TEAMS);
@@ -92,6 +93,32 @@ export default function App() {
     }
     return null;
   });
+
+  const [localParticipant, setLocalParticipant] = useState<Participant | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const id = sessionStorage.getItem('apresentalive_participant_id');
+        const name = sessionStorage.getItem('apresentalive_participant_name');
+        if (id && name) {
+          return {
+            id,
+            name,
+            avatar: '🦊',
+            score: 0,
+            connectedAt: Date.now()
+          };
+        }
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  });
+
+  const localParticipantRef = useRef<Participant | null>(localParticipant);
+  useEffect(() => {
+    localParticipantRef.current = localParticipant;
+  }, [localParticipant]);
 
   // Modo Apresentador Também Joga
   const [isPresenterPlaying, setIsPresenterPlaying] = useState<boolean>(() => {
@@ -151,6 +178,7 @@ export default function App() {
         setRoomCode(room.roomCode);
         setRoomTitle(room.roomTitle);
         setPresenterPassword(room.presenterPassword);
+        if (room.roomPassword !== undefined) setRoomPassword(room.roomPassword);
         if (room.slides && room.slides.length > 0) {
           setSlides(room.slides);
         }
@@ -180,6 +208,7 @@ export default function App() {
         if (saved) {
           setRoomTitle(saved.roomTitle);
           setPresenterPassword(saved.presenterPassword);
+          if (saved.roomPassword !== undefined) setRoomPassword(saved.roomPassword);
           if (saved.slides && saved.slides.length > 0) setSlides(saved.slides);
           if (saved.teams && saved.teams.length > 0) setTeams(saved.teams);
           if (saved.teamMode) setTeamMode(saved.teamMode);
@@ -269,7 +298,7 @@ export default function App() {
     return () => clearInterval(timerRef.current);
   }, [timerActive, timerRemaining, role, isPresenterAuthenticated, roomCode]);
 
-  // Transmissão de sincronização em lote de estado (heartbeat do apresentador)
+  // Transmissão de sincronização em lote de estado (heartbeat leve do apresentador)
   useEffect(() => {
     if (role === 'presenter' && isPresenterAuthenticated) {
       const interval = setInterval(() => {
@@ -277,11 +306,7 @@ export default function App() {
           currentSlideIndex,
           showAnswers,
           timerRemaining,
-          timerActive,
-          teams,
-          teamMode,
-          slides,
-          participants
+          timerActive
         });
       }, 3000);
       return () => clearInterval(interval);
@@ -293,10 +318,6 @@ export default function App() {
     showAnswers,
     timerRemaining,
     timerActive,
-    teams,
-    teamMode,
-    slides,
-    participants,
     roomCode
   ]);
 
@@ -451,12 +472,20 @@ export default function App() {
         if (data.teamMode) setTeamMode(data.teamMode);
         if (data.slides && data.slides.length > 0) setSlides(data.slides);
         if (data.participants) {
+          const myLocal = localParticipantRef.current;
           setParticipants((prev) => {
-            if (localParticipantId && prev[localParticipantId]) {
-              return { ...data.participants, [localParticipantId]: prev[localParticipantId] };
+            const merged = { ...data.participants };
+            if (myLocal) {
+              merged[myLocal.id] = {
+                ...myLocal,
+                ...(data.participants[myLocal.id] || {})
+              };
             }
-            return data.participants;
+            return merged;
           });
+          if (myLocal && data.participants[myLocal.id]) {
+            setLocalParticipant((prev) => prev ? ({ ...prev, ...data.participants[prev.id] }) : null);
+          }
         }
       }
 
@@ -468,6 +497,11 @@ export default function App() {
           delete next[pId];
           return next;
         });
+        if (localParticipantId === pId || localParticipantRef.current?.id === pId) {
+          setLocalParticipantId(null);
+          setLocalParticipant(null);
+          localParticipantRef.current = null;
+        }
       }
 
       // 9. Participante Removido / Expulso pelo Apresentador
@@ -478,9 +512,11 @@ export default function App() {
           delete next[pId];
           return next;
         });
-        if (localParticipantId === pId) {
+        if (localParticipantId === pId || localParticipantRef.current?.id === pId) {
           alert('Você foi removido da sala pelo apresentador.');
           setLocalParticipantId(null);
+          setLocalParticipant(null);
+          localParticipantRef.current = null;
           try {
             sessionStorage.removeItem('apresentalive_participant_id');
             sessionStorage.removeItem('apresentalive_participant_name');
@@ -498,9 +534,11 @@ export default function App() {
           delete next[pId];
           return next;
         });
-        if (localParticipantId === pId) {
+        if (localParticipantId === pId || localParticipantRef.current?.id === pId) {
           alert('Você foi banido desta sala pelo apresentador.');
           setLocalParticipantId(null);
+          setLocalParticipant(null);
+          localParticipantRef.current = null;
           try {
             sessionStorage.removeItem('apresentalive_participant_id');
             sessionStorage.removeItem('apresentalive_participant_name');
@@ -615,6 +653,8 @@ export default function App() {
     };
 
     setLocalParticipantId(newParticipant.id);
+    setLocalParticipant(newParticipant);
+    localParticipantRef.current = newParticipant;
     if (typeof window !== 'undefined') {
       try {
         sessionStorage.setItem('apresentalive_participant_id', newParticipant.id);
@@ -658,6 +698,7 @@ export default function App() {
 
   // Banir participante da sala
   const handleBanParticipant = (participantId: string) => {
+    const targetName = participants[participantId]?.name;
     setParticipants((prev) => {
       const next = { ...prev };
       delete next[participantId];
@@ -665,17 +706,50 @@ export default function App() {
     });
     const saved = storageService.getSavedRoom(roomCode);
     if (saved) {
-      const banned = saved.bannedParticipantIds || [];
-      if (!banned.includes(participantId)) {
-        storageService.saveRoom({
-          ...saved,
-          bannedParticipantIds: [...banned, participantId]
-        });
-      }
+      const bannedIds = saved.bannedParticipantIds || [];
+      const bannedNames = saved.bannedParticipantNames || [];
+      const newBannedIds = bannedIds.includes(participantId) ? bannedIds : [...bannedIds, participantId];
+      const newBannedNames = (targetName && !bannedNames.includes(targetName.trim().toLowerCase()))
+        ? [...bannedNames, targetName.trim().toLowerCase()]
+        : bannedNames;
+
+      storageService.saveRoom({
+        ...saved,
+        bannedParticipantIds: newBannedIds,
+        bannedParticipantNames: newBannedNames
+      });
     }
     realtimeService.broadcast('PARTICIPANT_BAN', roomCode, 'presenter', {
       participantId
     });
+  };
+
+  // Participante saindo voluntariamente da sala
+  const handleLeaveRoom = () => {
+    if (!currentLocalParticipant) return;
+    const pId = currentLocalParticipant.id;
+
+    realtimeService.broadcast('PARTICIPANT_LEAVE', roomCode, pId, {
+      participantId: pId
+    });
+
+    setParticipants((prev) => {
+      const next = { ...prev };
+      delete next[pId];
+      return next;
+    });
+
+    setLocalParticipantId(null);
+    setLocalParticipant(null);
+    localParticipantRef.current = null;
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.removeItem('apresentalive_participant_id');
+        sessionStorage.removeItem('apresentalive_participant_name');
+      } catch {
+        // ignore
+      }
+    }
   };
 
   // Botões de navegação de slides do apresentador
@@ -965,49 +1039,54 @@ export default function App() {
     });
   };
 
-  // Iniciar nova partida com todos os eliminados de volta
-  const handleStartNewMatch = () => {
+  // Iniciar jogo do Infiltrado pelo apresentador
+  const handleStartImpostorGame = () => {
     const currentSlide = slides[currentSlideIndex];
     if (!currentSlide || !currentSlide.impostorConfig) return;
 
     const config = currentSlide.impostorConfig;
     const participantList = Object.values(participants);
 
-    // Sortear nova palavra
-    const catName = config.category || 'Personagens Bíblicos';
-    const cat = PRESET_WORD_CATEGORIES.find((c) => c.name === catName) || PRESET_WORD_CATEGORIES[0];
-    const customList = config.customWordList;
-    const wordsPool = customList && customList.length > 0 ? customList : cat.words;
-    const newWord = wordsPool[Math.floor(Math.random() * wordsPool.length)] || 'Moisés';
+    // 1. Validar palavra secreta (se não definida, sorteia da categoria)
+    let wordToUse = config.secretWord?.trim();
+    if (!wordToUse) {
+      const catName = config.category || 'Personagens Bíblicos';
+      const cat = PRESET_WORD_CATEGORIES.find((c) => c.name === catName) || PRESET_WORD_CATEGORIES[0];
+      const customList = config.customWordList;
+      const wordsPool = customList && customList.length > 0 ? customList : cat.words;
+      wordToUse = wordsPool[Math.floor(Math.random() * wordsPool.length)] || 'Moisés';
+    }
 
-    // Calcular proporção de infiltrados
+    // 2. Definir Agentes e Infiltrado caso ainda não tenham sido sorteados/selecionados
+    let agentIds = [...(config.agentParticipantIds || [])];
+    let impostorIds = [...(config.impostorParticipantIds || [])];
     const targetAgents = config.numAgents || Math.min(4, Math.max(1, participantList.length));
-    let ratio = config.impostorRatio || 0.25;
-    if (config.impostorRatioPreset === '1_per_2') ratio = 0.50;
-    else if (config.impostorRatioPreset === '1_per_3') ratio = 0.333;
-    else if (config.impostorRatioPreset === '1_per_4') ratio = 0.25;
-    else if (config.impostorRatioPreset === '1_per_5') ratio = 0.20;
-    else if (config.impostorRatioPreset === '1_per_6') ratio = 0.166;
+    const targetImpostors = config.numImpostors || 1;
 
-    let targetImpostors = Math.max(1, Math.round((config.mode === 'investigator' ? targetAgents : participantList.length) * ratio));
-    if (participantList.length > 1) {
-      targetImpostors = Math.min(targetImpostors, (config.mode === 'investigator' ? targetAgents : participantList.length) - 1);
+    if (config.mode === 'investigator') {
+      if (agentIds.length < targetAgents && participantList.length > 0) {
+        const shuffled = [...participantList].sort(() => 0.5 - Math.random());
+        agentIds = shuffled.slice(0, Math.min(targetAgents, shuffled.length)).map((p) => p.id);
+      }
+      if (impostorIds.length === 0 && agentIds.length > 0) {
+        const shuffledAgents = [...agentIds].sort(() => 0.5 - Math.random());
+        impostorIds = shuffledAgents.slice(0, Math.min(targetImpostors, agentIds.length));
+      }
+      impostorIds.forEach((impId) => {
+        if (!agentIds.includes(impId)) agentIds.push(impId);
+      });
+    } else {
+      // Classic
+      if (impostorIds.length === 0 && participantList.length > 0) {
+        const shuffled = [...participantList].sort(() => 0.5 - Math.random());
+        impostorIds = shuffled.slice(0, Math.min(targetImpostors, participantList.length)).map((p) => p.id);
+      }
+      if (agentIds.length === 0 && participantList.length > 0) {
+        agentIds = participantList.map((p) => p.id).filter((id) => !impostorIds.includes(id));
+      }
     }
 
-    let agentIds: string[] = [];
-    let impostorIds: string[] = [];
-
-    if (config.mode === 'investigator' && participantList.length > 0) {
-      const shuffled = [...participantList].sort(() => 0.5 - Math.random());
-      agentIds = shuffled.slice(0, Math.min(targetAgents, shuffled.length)).map((p) => p.id);
-      const shuffledAgents = [...agentIds].sort(() => 0.5 - Math.random());
-      impostorIds = shuffledAgents.slice(0, Math.min(targetImpostors, agentIds.length));
-    } else if (participantList.length > 0) {
-      const shuffled = [...participantList].sort(() => 0.5 - Math.random());
-      impostorIds = shuffled.slice(0, Math.min(targetImpostors, shuffled.length)).map((p) => p.id);
-    }
-
-    // Sincroniza participantes com as novas funções
+    // Sincroniza participantes
     setParticipants((prev) => {
       const updated = { ...prev };
       Object.keys(updated).forEach((id) => {
@@ -1021,18 +1100,52 @@ export default function App() {
     });
 
     handleUpdateImpostorConfig({
-      secretWord: newWord,
-      votingActive: false,
+      gameStarted: true,
+      secretWord: wordToUse,
+      agentParticipantIds: agentIds,
+      impostorParticipantIds: impostorIds,
       revealState: 'words_shown',
+      votingActive: false,
       votes: {},
       currentRound: 1,
       eliminatedIds: [],
       lastEliminatedId: undefined,
       lastEliminatedWasImpostor: undefined,
-      winner: undefined,
-      agentParticipantIds: agentIds,
-      impostorParticipantIds: impostorIds,
-      numImpostors: targetImpostors
+      winner: undefined
+    });
+  };
+
+  // Iniciar nova partida com todos os eliminados de volta (aguardando início pelo apresentador)
+  const handleStartNewMatch = () => {
+    const currentSlide = slides[currentSlideIndex];
+    if (!currentSlide || !currentSlide.impostorConfig) return;
+
+    // Reseta participantes para estado neutro
+    setParticipants((prev) => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach((id) => {
+        updated[id] = {
+          ...updated[id],
+          isAgent: false,
+          isImpostor: false
+        };
+      });
+      return updated;
+    });
+
+    handleUpdateImpostorConfig({
+      gameStarted: false,
+      secretWord: '',
+      impostorParticipantIds: [],
+      agentParticipantIds: [],
+      votingActive: false,
+      revealState: 'hidden',
+      votes: {},
+      currentRound: 1,
+      eliminatedIds: [],
+      lastEliminatedId: undefined,
+      lastEliminatedWasImpostor: undefined,
+      winner: undefined
     });
   };
 
@@ -1214,6 +1327,9 @@ export default function App() {
   };
 
   const currentLocalParticipant = (() => {
+    if (localParticipant) {
+      return localParticipant;
+    }
     if (localParticipantId && participants[localParticipantId]) {
       return participants[localParticipantId];
     }
@@ -1253,6 +1369,7 @@ export default function App() {
     setRoomCode(room.roomCode);
     setRoomTitle(room.roomTitle);
     setPresenterPassword(room.presenterPassword);
+    setRoomPassword(room.roomPassword);
     setSlides(room.slides);
     setTeamMode(room.teamMode);
     setTeams(room.teams);
@@ -1260,13 +1377,14 @@ export default function App() {
     storageService.setActiveRoomCode(room.roomCode);
   };
 
-  const handleCreateNewRoom = (title: string, pin: string, password: string) => {
+  const handleCreateNewRoom = (title: string, pin: string, password: string, rPassword?: string) => {
     const defaultSlide = createDefaultSlide('content_cover', 0);
     const newRoom: SavedRoom = {
       id: `room-${pin}`,
       roomCode: pin,
       roomTitle: title,
       presenterPassword: password,
+      roomPassword: rPassword,
       slides: [defaultSlide],
       teamMode: 'random',
       teams: PRESET_TEAMS,
@@ -1281,11 +1399,13 @@ export default function App() {
   const handleUpdateRoomSettings = (settings: {
     roomTitle?: string;
     presenterPassword?: string;
+    roomPassword?: string;
     teamMode?: TeamMode;
     teams?: Team[];
   }) => {
     if (settings.roomTitle !== undefined) setRoomTitle(settings.roomTitle);
     if (settings.presenterPassword !== undefined) setPresenterPassword(settings.presenterPassword);
+    if (settings.roomPassword !== undefined) setRoomPassword(settings.roomPassword);
     if (settings.teamMode !== undefined) setTeamMode(settings.teamMode);
     if (settings.teams !== undefined) setTeams(settings.teams);
 
@@ -1294,6 +1414,7 @@ export default function App() {
       roomCode,
       roomTitle: settings.roomTitle ?? roomTitle,
       presenterPassword: settings.presenterPassword ?? presenterPassword,
+      roomPassword: settings.roomPassword !== undefined ? settings.roomPassword : roomPassword,
       slides,
       teamMode: settings.teamMode ?? teamMode,
       teams: settings.teams ?? teams,
@@ -1310,6 +1431,7 @@ export default function App() {
       roomCode,
       roomTitle,
       presenterPassword,
+      roomPassword,
       slides: newSlides,
       teamMode,
       teams,
@@ -1334,6 +1456,7 @@ export default function App() {
             setRoomCode(data.roomCode);
             setRoomTitle(data.roomTitle);
             setPresenterPassword(data.adminPassword);
+            setRoomPassword(data.roomPassword);
             setSlides(data.slides);
             setCurrentSlideIndex(0);
             setIsPresenterAuthenticated(true);
@@ -1345,6 +1468,7 @@ export default function App() {
               roomCode: data.roomCode,
               roomTitle: data.roomTitle,
               presenterPassword: data.adminPassword,
+              roomPassword: data.roomPassword,
               slides: data.slides,
               teamMode,
               teams,
@@ -1361,6 +1485,7 @@ export default function App() {
               if (saved) {
                 setRoomTitle(saved.roomTitle);
                 setPresenterPassword(saved.presenterPassword);
+                setRoomPassword(saved.roomPassword);
                 if (saved.slides && saved.slides.length > 0) setSlides(saved.slides);
               }
             }
@@ -1586,6 +1711,7 @@ export default function App() {
             onOpenTeamManager={() => setIsTeamModalOpen(true)}
             onAddSimulatedParticipants={handleAddSimulatedParticipants}
             onSwitchToEditor={() => handleNavigateTo('settings')}
+            onStartImpostorGame={handleStartImpostorGame}
             onUpdateImpostorConfig={handleUpdateImpostorConfig}
             onStartImpostorVoting={handleStartImpostorVoting}
             onRevealImpostor={handleRevealImpostor}
@@ -1653,6 +1779,7 @@ export default function App() {
                 }
               }}
               onAddSimulatedParticipants={handleAddSimulatedParticipants}
+              onStartImpostorGame={handleStartImpostorGame}
               onUpdateImpostorConfig={handleUpdateImpostorConfig}
               onStartImpostorVoting={handleStartImpostorVoting}
               onRevealImpostor={handleRevealImpostor}
@@ -1716,6 +1843,7 @@ export default function App() {
               roomCode={roomCode}
               roomTitle={roomTitle}
               presenterPassword={presenterPassword}
+              roomPassword={roomPassword}
               teamMode={teamMode}
               teams={teams}
               onUpdateRoomSettings={handleUpdateRoomSettings}
@@ -1781,6 +1909,7 @@ export default function App() {
                 });
               }}
               allParticipants={Object.values(participants)}
+              onLeaveRoom={handleLeaveRoom}
             />
           )
         )}

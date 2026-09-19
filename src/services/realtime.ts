@@ -58,7 +58,7 @@ class RealtimeSyncService {
     if (typeof window !== 'undefined') {
       // 1. Configura BroadcastChannel para sincronização instantânea na mesma máquina (2ª Tela / Projetor)
       try {
-        this.channel = new BroadcastChannel('apresentalive_realtime_channel');
+        this.channel = new BroadcastChannel('apresentalive_fb2658bb_channel');
         this.channel.onmessage = (event) => {
           this.handleIncomingMessage(event.data, false);
         };
@@ -68,7 +68,7 @@ class RealtimeSyncService {
 
       // 2. Storage event backup para mesma máquina
       window.addEventListener('storage', (event) => {
-        if (event.key === 'apresentalive_last_msg' && event.newValue) {
+        if (event.key === 'apresentalive_fb2658bb_msg' && event.newValue) {
           try {
             const data = JSON.parse(event.newValue);
             this.handleIncomingMessage(data, false);
@@ -109,7 +109,7 @@ class RealtimeSyncService {
 
       this.mqttClient.on('connect', () => {
         if (this.currentRoomCode) {
-          const topic = `apresentalive/room/${this.currentRoomCode}/#`;
+          const topic = `apresentalive_fb2658bb/room/${this.currentRoomCode}/#`;
           this.mqttClient?.subscribe(topic, { qos: 0 });
         }
       });
@@ -348,7 +348,7 @@ class RealtimeSyncService {
     if (this.currentRoomCode !== clean || this.currentRole !== role) {
       // Se já estava inscrito em outra sala no MQTT, cancela a inscrição antiga
       if (this.mqttClient && this.mqttClient.connected && this.currentRoomCode) {
-        this.mqttClient.unsubscribe(`apresentalive/room/${this.currentRoomCode}/#`);
+        this.mqttClient.unsubscribe(`apresentalive_fb2658bb/room/${this.currentRoomCode}/#`);
       }
 
       this.currentRoomCode = clean;
@@ -356,7 +356,7 @@ class RealtimeSyncService {
 
       // Inscreve no novo tópico MQTT
       if (this.mqttClient && this.mqttClient.connected) {
-        this.mqttClient.subscribe(`apresentalive/room/${clean}/#`, { qos: 0 });
+        this.mqttClient.subscribe(`apresentalive_fb2658bb/room/${clean}/#`, { qos: 0 });
       }
 
       // Reinicializa WebRTC
@@ -393,7 +393,7 @@ class RealtimeSyncService {
 
     // 1. MQTT Cloud Relay (conecta celulares, 4G, outras redes, GitHub Pages)
     if (this.mqttClient && this.mqttClient.connected) {
-      const topic = `apresentalive/room/${cleanRoomCode}/${type}`;
+      const topic = `apresentalive_fb2658bb/room/${cleanRoomCode}/${type}`;
       this.mqttClient.publish(topic, raw, { qos: 0 });
     }
 
@@ -417,7 +417,7 @@ class RealtimeSyncService {
 
     // 4. Storage event backup
     try {
-      localStorage.setItem('apresentalive_last_msg', raw);
+      localStorage.setItem('apresentalive_fb2658bb_msg', raw);
     } catch {
       // ignore
     }

@@ -42,6 +42,7 @@ interface PresentationPlayerProps {
   onAddSimulatedParticipants: () => void;
   onSwitchToEditor: () => void;
   onOpenProjectorWindow?: () => void;
+  onStartImpostorGame?: () => void;
   onUpdateImpostorConfig: (config: Partial<ImpostorConfig>) => void;
   onStartImpostorVoting: () => void;
   onRevealImpostor: () => void;
@@ -77,6 +78,7 @@ export const PresentationPlayer: React.FC<PresentationPlayerProps> = ({
   onAddSimulatedParticipants,
   onSwitchToEditor,
   onOpenProjectorWindow,
+  onStartImpostorGame,
   onUpdateImpostorConfig,
   onStartImpostorVoting,
   onRevealImpostor,
@@ -194,6 +196,7 @@ export const PresentationPlayer: React.FC<PresentationPlayerProps> = ({
             onResetGame={onResetImpostorGame}
             onAdvanceToNextRound={onAdvanceToNextRound}
             onStartNewMatch={onStartNewMatch}
+            onStartImpostorGame={onStartImpostorGame}
             onAddSimulatedParticipants={onAddSimulatedParticipants}
             isPresenter={!isProjectorOnly}
           />
@@ -244,13 +247,13 @@ export const PresentationPlayer: React.FC<PresentationPlayerProps> = ({
       <LiveReactionsOverlay reactions={reactions} />
 
       {/* Main Slide Stage with Motion Graphic transitions in 16:9 container */}
-      <div className="flex-1 w-full h-full overflow-hidden flex items-center justify-center relative z-10 p-1 sm:p-2">
-        <div className="w-full h-full max-w-7xl aspect-video mx-auto flex flex-col relative overflow-hidden rounded-2xl shadow-2xl bg-black/20">
+      <div className={`flex-1 w-full h-full overflow-hidden flex items-center justify-center relative z-10 ${isEmbedded ? 'p-0' : 'p-1 sm:p-2'}`}>
+        <div className={`w-full h-full ${isEmbedded ? 'max-w-full' : 'max-w-7xl aspect-video'} mx-auto flex flex-col relative overflow-hidden rounded-xl sm:rounded-2xl shadow-2xl bg-black/20`}>
           <MotionSlideContainer
             slideKey={currentSlide.id}
             animation={currentSlide.animation}
           >
-            <div className="w-full h-full relative overflow-hidden">
+            <div className="w-full h-full relative overflow-hidden flex flex-col">
               {renderSlideContent()}
               <AnimatedSlideElementsOverlay elements={currentSlide.elements} />
             </div>

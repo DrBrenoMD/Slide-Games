@@ -213,9 +213,10 @@ export const SAMPLE_PRESENTATION_SLIDES: Slide[] = [
     subtitle: 'Descubra quem não sabe a palavra secreta!',
     categoryName: 'Personagens Bíblicos',
     impostorConfig: {
+      gameStarted: false,
       mode: 'classic',
       category: 'Personagens Bíblicos',
-      secretWord: 'Moisés',
+      secretWord: '',
       impostorParticipantIds: [],
       agentParticipantIds: [],
       roundsTotal: 1,
@@ -247,9 +248,10 @@ export const SAMPLE_PRESENTATION_SLIDES: Slide[] = [
     subtitle: 'Agentes dão as pistas. A platéia investiga e vota a cada rodada!',
     categoryName: 'Lugares e Monumentos',
     impostorConfig: {
+      gameStarted: false,
       mode: 'investigator',
       category: 'Lugares e Monumentos',
-      secretWord: 'Torre Eiffel',
+      secretWord: '',
       impostorParticipantIds: [],
       agentParticipantIds: [],
       roundsTotal: 3,

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PRESET_AVATARS } from '../../data/presetWords';
 import { Team, TeamMode } from '../../types';
-import { Sparkles, Users, ArrowRight, UserCheck, Smartphone, Lock, Shield, Loader2 } from 'lucide-react';
+import { storageService } from '../../services/storage';
+import { Sparkles, Users, ArrowRight, UserCheck, Smartphone, Lock, Shield, Loader2, AlertTriangle } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface ParticipantJoinProps {
@@ -11,6 +12,7 @@ interface ParticipantJoinProps {
   teams?: Team[];
   teamMode?: TeamMode;
   onOpenPresenterLogin: () => void;
+  externalError?: string;
 }
 
 export const ParticipantJoin: React.FC<ParticipantJoinProps> = ({
@@ -19,7 +21,8 @@ export const ParticipantJoin: React.FC<ParticipantJoinProps> = ({
   onJoin,
   teams = [],
   teamMode = 'none',
-  onOpenPresenterLogin
+  onOpenPresenterLogin,
+  externalError
 }) => {
   const [roomCode, setRoomCode] = useState(initialRoomCode);
   const [name, setName] = useState('');
@@ -28,26 +31,69 @@ export const ParticipantJoin: React.FC<ParticipantJoinProps> = ({
   const [selectedTeamId, setSelectedTeamId] = useState<string | undefined>(undefined);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [targetRoomProtected, setTargetRoomProtected] = useState(roomRequiresPassword);
+
+  useEffect(() => {
+    if (externalError) {
+      setError(externalError);
+      setIsSubmitting(false);
+    }
+  }, [externalError]);
+
+  // Checa se a sala digitada possui senha configurada
+  useEffect(() => {
+    const clean = roomCode.trim().toUpperCase();
+    if (clean) {
+      const room = storageService.getSavedRoom(clean);
+      if (room && room.roomPassword && room.roomPassword.trim()) {
+        setTargetRoomProtected(true);
+      } else if (!roomRequiresPassword) {
+        setTargetRoomProtected(false);
+      }
+    }
+  }, [roomCode, roomRequiresPassword]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
 
-    if (!roomCode.trim()) {
+    const cleanCode = roomCode.trim().toUpperCase();
+    const cleanName = name.trim();
+
+    if (!cleanCode) {
       setError('Por favor, informe o código PIN da sala.');
       return;
     }
-    if (!name.trim()) {
+    if (!cleanName) {
       setError('Por favor, digite seu apelido ou nome.');
       return;
+    }
+
+    // Verifica se este usuário foi banido desta sala
+    if (storageService.isParticipantBanned(cleanCode, undefined, cleanName)) {
+      setError('🚫 Você foi banido desta sala pelo apresentador e não pode ingressar.');
+      return;
+    }
+
+    // Se a sala exige senha e o usuário não digitou
+    const savedRoom = storageService.getSavedRoom(cleanCode);
+    if (savedRoom && savedRoom.roomPassword && savedRoom.roomPassword.trim()) {
+      if (!roomPassword.trim()) {
+        setError('Esta sala é protegida por senha. Por favor, digite a senha da sala.');
+        return;
+      }
+      if (roomPassword.trim() !== savedRoom.roomPassword.trim()) {
+        setError('Senha da sala incorreta. Verifique com o apresentador da sessão.');
+        return;
+      }
     }
 
     setIsSubmitting(true);
     setError('');
 
     onJoin({
-      roomCode: roomCode.trim().toUpperCase(),
-      name: name.trim(),
+      roomCode: cleanCode,
+      name: cleanName,
       avatar,
       teamId: selectedTeamId,
       roomPassword: roomPassword.trim() || undefined
@@ -113,24 +159,35 @@ export const ParticipantJoin: React.FC<ParticipantJoinProps> = ({
             </div>
 
             {/* Optional Room Password (if room is protected) */}
-            <div>
-              <label className="text-xs uppercase tracking-wider font-bold text-amber-300 block mb-1.5 flex items-center justify-between">
+            <div className={targetRoomProtected ? 'p-3 bg-amber-950/30 border border-amber-500/40 rounded-2xl space-y-1.5' : ''}>
+              <label className="text-xs uppercase tracking-wider font-bold text-amber-300 block mb-1 flex items-center justify-between">
                 <span className="flex items-center gap-1.5">
-                  <Shield className="w-3.5 h-3.5" />
-                  <span>Senha da Sala (Se solicitada)</span>
+                  <Shield className="w-3.5 h-3.5 text-amber-400" />
+                  <span>{targetRoomProtected ? 'Senha da Sala (Obrigatória)' : 'Senha da Sala (Se solicitada)'}</span>
                 </span>
-                <span className="text-[10px] text-slate-400 font-normal lowercase">opcional</span>
+                <span className={`text-[10px] font-semibold ${targetRoomProtected ? 'text-amber-400' : 'text-slate-400 font-normal lowercase'}`}>
+                  {targetRoomProtected ? 'requerida' : 'opcional'}
+                </span>
               </label>
               <input
                 type="password"
-                placeholder="Deixe em branco se a sala for aberta"
+                placeholder={targetRoomProtected ? 'Digite a senha da sala para entrar' : 'Deixe em branco se a sala for aberta'}
                 value={roomPassword}
                 onChange={(e) => {
                   setRoomPassword(e.target.value);
                   setError('');
                 }}
-                className="w-full px-4 py-2.5 rounded-2xl bg-slate-800 border border-slate-700 text-amber-200 font-mono text-sm focus:outline-none focus:border-amber-400 shadow-inner"
+                className={`w-full px-4 py-2.5 rounded-2xl font-mono text-sm shadow-inner transition-colors ${
+                  targetRoomProtected
+                    ? 'bg-slate-900 border border-amber-500/60 text-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-500/40'
+                    : 'bg-slate-800 border border-slate-700 text-amber-200 focus:outline-none focus:border-amber-400'
+                }`}
               />
+              {targetRoomProtected && (
+                <p className="text-[11px] text-amber-300/80">
+                  Esta sala foi configurada com senha pelo apresentador para evitar participantes indesejados.
+                </p>
+              )}
             </div>
 
             {/* Avatar Selector */}

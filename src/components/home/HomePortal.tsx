@@ -147,6 +147,17 @@ export const HomePortal: React.FC<HomePortalProps> = ({
       return;
     }
 
+    if (requireRoomPassword) {
+      if (!roomPassword.trim()) {
+        setCreateError('Por favor, informe a senha da sala para os participantes ou desative a proteção por senha.');
+        return;
+      }
+      if (roomPassword.trim() === adminPassword.trim()) {
+        setCreateError('A senha da sala para participantes deve ser DIFERENTE da senha de administrador por segurança.');
+        return;
+      }
+    }
+
     const template = ROOM_TEMPLATES.find((t) => t.id === selectedTemplateId) || ROOM_TEMPLATES[0];
 
     onCreateRoom({

@@ -9,6 +9,7 @@ export interface SavedRoom {
   presenterPassword: string;
   roomPassword?: string; // Senha para os participantes entrarem (opcional)
   bannedParticipantIds?: string[];
+  bannedParticipantNames?: string[];
   slides: Slide[];
   teamMode: TeamMode;
   teams: Team[];
@@ -97,12 +98,13 @@ export const storageService = {
     const original = this.getSavedRoom(code);
     if (!original) return null;
 
-    const newPin = Math.floor(100000 + Math.random() * 900000).toString();
+    const newPin = this.generateUniqueRoomCode();
+    const newTitle = this.generateUniqueRoomTitle(original.roomTitle);
     const clonedRoom: SavedRoom = {
       ...original,
       id: `room-${newPin}`,
       roomCode: newPin,
-      roomTitle: `${original.roomTitle} (Cópia)`,
+      roomTitle: newTitle,
       createdAt: Date.now(),
       updatedAt: Date.now()
     };
@@ -134,15 +136,27 @@ export const storageService = {
   },
 
   isRoomTitleTaken(title: string, excludeRoomCode?: string): boolean {
-    const cleanTitle = title.trim().toLowerCase();
+    const normalize = (t: string) => t.trim().toLowerCase().replace(/\s+/g, ' ');
+    const cleanTitle = normalize(title);
     if (!cleanTitle) return false;
     const rooms = this.getSavedRooms();
     return rooms.some((r) => {
       if (excludeRoomCode && r.roomCode.toUpperCase() === excludeRoomCode.trim().toUpperCase()) {
         return false;
       }
-      return r.roomTitle.trim().toLowerCase() === cleanTitle;
+      return normalize(r.roomTitle) === cleanTitle;
     });
+  },
+
+  generateUniqueRoomTitle(baseTitle: string, excludeRoomCode?: string): string {
+    const trimmed = baseTitle.trim().replace(/\s*\(Cópia(\s+\d+)?\)$/i, '');
+    let candidate = `${trimmed} (Cópia)`;
+    let counter = 2;
+    while (this.isRoomTitleTaken(candidate, excludeRoomCode)) {
+      candidate = `${trimmed} (Cópia ${counter})`;
+      counter++;
+    }
+    return candidate;
   },
 
   isRoomCodeTaken(code: string, excludeRoomCode?: string): boolean {
@@ -167,5 +181,53 @@ export const storageService = {
       attempts++;
     } while (existingCodes.has(newCode) && attempts < 100);
     return newCode;
+  },
+
+  isParticipantBanned(roomCode: string, participantId?: string, participantName?: string): boolean {
+    if (typeof window !== 'undefined') {
+      try {
+        if (sessionStorage.getItem(`apresentalive_banned_${roomCode.trim().toUpperCase()}`) === 'true') {
+          return true;
+        }
+      } catch {
+        // ignore
+      }
+    }
+    const room = this.getSavedRoom(roomCode);
+    if (!room) return false;
+
+    if (participantId && room.bannedParticipantIds && room.bannedParticipantIds.includes(participantId)) {
+      return true;
+    }
+
+    if (participantName && room.bannedParticipantNames) {
+      const cleanName = participantName.trim().toLowerCase();
+      if (room.bannedParticipantNames.some((n) => n.trim().toLowerCase() === cleanName)) {
+        return true;
+      }
+    }
+
+    return false;
+  },
+
+  banParticipant(roomCode: string, participantId: string, participantName?: string): void {
+    const room = this.getSavedRoom(roomCode);
+    if (!room) return;
+
+    const bannedIds = new Set(room.bannedParticipantIds || []);
+    bannedIds.add(participantId);
+
+    const bannedNames = new Set(room.bannedParticipantNames || []);
+    if (participantName && participantName.trim()) {
+      bannedNames.add(participantName.trim());
+    }
+
+    const updatedRoom: SavedRoom = {
+      ...room,
+      bannedParticipantIds: Array.from(bannedIds),
+      bannedParticipantNames: Array.from(bannedNames),
+      updatedAt: Date.now()
+    };
+    this.saveRoom(updatedRoom);
   }
 };
