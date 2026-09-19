@@ -51,6 +51,18 @@ export const ParticipantView: React.FC<ParticipantViewProps> = ({
   const [pinConfirmed, setPinConfirmed] = useState(false);
   const [votedSuspectId, setVotedSuspectId] = useState<string | null>(null);
 
+  // Limpa estados de resposta quando avança de slide
+  React.useEffect(() => {
+    setSelectedOption(null);
+    setTextInput('');
+    setTermInput('');
+    setMySubmittedTerms([]);
+    setTermFeedback(null);
+    setPendingPin(null);
+    setPinConfirmed(false);
+    setVotedSuspectId(null);
+  }, [currentSlideIndex]);
+
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const participantTeam = teams.find((t) => t.id === participant.teamId);
 

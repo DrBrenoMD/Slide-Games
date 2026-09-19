@@ -164,29 +164,35 @@ export default function App() {
     realtimeService.setRoomCode(roomCode, role);
   }, [roomCode, role]);
 
-  // Inicializa o timer quando o slide muda
-  useEffect(() => {
-    const currentSlide = slides[currentSlideIndex];
-    if (currentSlide && currentSlide.timeLimitSeconds && currentSlide.timeLimitSeconds > 0) {
-      setTimerRemaining(currentSlide.timeLimitSeconds);
-      setTimerActive(false);
-    } else {
-      setTimerRemaining(null);
-      setTimerActive(false);
-    }
-    setShowAnswers(false);
-    setAnswersSubmitted({});
-    setImagePins([]);
-    setTermSubmissions([]);
+  // Referência para controlar mudança real de slide
+  const prevSlideIndexRef = useRef<number>(currentSlideIndex);
 
-    // Transmite sincronização para os participantes conectados
-    if (role === 'presenter' && isPresenterAuthenticated) {
-      realtimeService.broadcast('CHANGE_SLIDE', roomCode, 'presenter', {
-        currentSlideIndex,
-        timeLimitSeconds: currentSlide?.timeLimitSeconds,
-        showAnswers: false,
-        slideType: currentSlide?.type
-      });
+  // Inicializa o timer quando o índice do slide realmente muda
+  useEffect(() => {
+    if (prevSlideIndexRef.current !== currentSlideIndex) {
+      prevSlideIndexRef.current = currentSlideIndex;
+      const currentSlide = slides[currentSlideIndex];
+      if (currentSlide && currentSlide.timeLimitSeconds && currentSlide.timeLimitSeconds > 0) {
+        setTimerRemaining(currentSlide.timeLimitSeconds);
+        setTimerActive(false);
+      } else {
+        setTimerRemaining(null);
+        setTimerActive(false);
+      }
+      setShowAnswers(false);
+      setAnswersSubmitted({});
+      setImagePins([]);
+      setTermSubmissions([]);
+
+      // Transmite sincronização para os participantes conectados
+      if (role === 'presenter' && isPresenterAuthenticated) {
+        realtimeService.broadcast('CHANGE_SLIDE', roomCode, 'presenter', {
+          currentSlideIndex,
+          timeLimitSeconds: currentSlide?.timeLimitSeconds,
+          showAnswers: false,
+          slideType: currentSlide?.type
+        });
+      }
     }
   }, [currentSlideIndex, slides, role, isPresenterAuthenticated, roomCode]);
 

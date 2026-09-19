@@ -22,8 +22,6 @@ export const ImpostorParticipantCard: React.FC<ImpostorParticipantCardProps> = (
   revealWordToInvestigators = false,
   hasBeenAssigned = true
 }) => {
-  // Se deve mostrar a palavra secreta para este participante
-  const shouldSeeWord = !isImpostor && (!isInvestigator || revealWordToInvestigators);
   // Por padrão visível para que o participante nunca fique sem saber
   const [showSecret, setShowSecret] = useState<boolean>(true);
 
@@ -31,18 +29,18 @@ export const ImpostorParticipantCard: React.FC<ImpostorParticipantCardProps> = (
   if (!hasBeenAssigned) {
     return (
       <div className="w-full max-w-sm mx-auto p-4 flex flex-col items-center">
-        <div className="w-full rounded-3xl p-6 bg-slate-900 border-2 border-amber-500/40 text-center shadow-xl space-y-3">
-          <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-2xl animate-pulse">
-            🎲
+        <div className="w-full rounded-3xl p-6 bg-slate-900/90 border border-slate-700 text-center shadow-xl space-y-3">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-2xl">
+            🕵️
           </div>
-          <span className="text-[11px] uppercase tracking-wider font-extrabold text-amber-400 block">
-            Aguardando Início da Rodada
+          <span className="text-[11px] uppercase tracking-wider font-extrabold text-indigo-400 block">
+            Aguardando Início da Partida
           </span>
           <h3 className="text-lg font-black text-white">
-            Sorteando Agentes & Infiltrados...
+            Tema: {category}
           </h3>
           <p className="text-xs text-slate-300 leading-relaxed">
-            O apresentador está preparando a rodada. Assim que o sorteio ocorrer, sua função secreta e palavra aparecerão aqui na sua tela!
+            O apresentador irá iniciar a rodada. Sua identidade secreta e instruções serão exibidas automaticamente aqui na sua tela.
           </p>
         </div>
       </div>
