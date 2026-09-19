@@ -262,7 +262,22 @@ export default function App() {
       // 1. Participante entrou na sala
       if (msg.type === 'PARTICIPANT_JOIN' && msg.payload?.participant) {
         const p = msg.payload.participant as Participant;
-        setParticipants((prev) => ({ ...prev, [p.id]: p }));
+        setParticipants((prev) => {
+          const next = { ...prev, [p.id]: p };
+          if (role === 'presenter') {
+            realtimeService.broadcast('SYNC_STATE', roomCode, 'presenter', {
+              currentSlideIndex,
+              showAnswers,
+              timerRemaining,
+              timerActive,
+              teams,
+              teamMode,
+              slides,
+              participants: next
+            });
+          }
+          return next;
+        });
       }
 
       // 2. Resposta de múltipla escolha enviada
@@ -484,6 +499,9 @@ export default function App() {
     realtimeService.broadcast('PARTICIPANT_JOIN', roomCode, newParticipant.id, {
       participant: newParticipant
     });
+
+    // Solicita imediatamente a sincronização de estado completo para a sala
+    realtimeService.broadcast('REQUEST_FULL_STATE', roomCode, newParticipant.id, {});
   };
 
   // Botões de navegação de slides do apresentador
@@ -1044,7 +1062,7 @@ export default function App() {
             slides={slides}
             currentSlideIndex={currentSlideIndex}
             roomCode={roomCode}
-            appUrl={typeof window !== 'undefined' ? window.location.origin : ''}
+            appUrl={typeof window !== 'undefined' ? window.location.href.split('?')[0].split('#')[0] : ''}
             participants={Object.values(participants)}
             teams={teams}
             teamMode={teamMode}
