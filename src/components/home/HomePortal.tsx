@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { ROOM_TEMPLATES } from '../../data/templates';
-import { Slide } from '../../types';
+import { Slide, SavedPresentation } from '../../types';
 import { storageService, SavedRoom } from '../../services/storage';
+import { useAuth } from '../../context/AuthContext';
+import { UserAuthBar } from '../common/UserAuthBar';
+import { CloudLibraryModal } from '../common/CloudLibraryModal';
 import {
   Gamepad2,
   Sparkles,
@@ -21,7 +24,13 @@ import {
   Calendar,
   ExternalLink,
   Sliders,
-  FolderHeart
+  FolderHeart,
+  Cloud,
+  Play,
+  Edit3,
+  Plus,
+  Zap,
+  LogIn
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -36,6 +45,8 @@ interface HomePortalProps {
   }) => void;
   onOpenAdminLogin: (roomCode?: string) => void;
   onProjectRoom: (roomCode: string) => void;
+  onLoadPresentation?: (pres: SavedPresentation) => void;
+  onCreateBlankPresentation?: () => void;
 }
 
 export const HomePortal: React.FC<HomePortalProps> = ({
@@ -43,14 +54,20 @@ export const HomePortal: React.FC<HomePortalProps> = ({
   onJoinAsParticipant,
   onCreateRoom,
   onOpenAdminLogin,
-  onProjectRoom
+  onProjectRoom,
+  onLoadPresentation,
+  onCreateBlankPresentation
 }) => {
+  const { user, savedPresentations, savedCloudRooms, loginWithGoogle, removePresentationFromCloud, savePresentationToCloud } = useAuth();
   const [activeTab, setActiveTab] = useState<'options' | 'create'>('options');
+  const [librarySectionTab, setLibrarySectionTab] = useState<'cloud_pres' | 'saved_rooms'>('cloud_pres');
   const [pinInput, setPinInput] = useState(currentRoomCode || '');
   const [pinError, setPinError] = useState('');
   const [savedRooms, setSavedRooms] = useState<SavedRoom[]>([]);
   const [copiedPin, setCopiedPin] = useState<string | null>(null);
   const [deleteConfirmPin, setDeleteConfirmPin] = useState<string | null>(null);
+  const [deleteConfirmPresId, setDeleteConfirmPresId] = useState<string | null>(null);
+  const [isLibraryModalOpen, setIsLibraryModalOpen] = useState(false);
 
   // Formulário de Criação de Sala
   const generateRandomPin = () => {
@@ -65,7 +82,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('full_show');
   const [createError, setCreateError] = useState('');
 
-  // Carrega lista de salas salvas
+  // Carrega lista de salas salvas locais
   const refreshSavedRooms = () => {
     try {
       const rooms = storageService.getSavedRooms();
@@ -134,20 +151,49 @@ export const HomePortal: React.FC<HomePortalProps> = ({
     refreshSavedRooms();
   };
 
+  const handleDeleteCloudPres = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    await removePresentationFromCloud(id);
+    setDeleteConfirmPresId(null);
+  };
+
   const handleDuplicateRoom = (pin: string, e: React.MouseEvent) => {
     e.stopPropagation();
     storageService.duplicateRoom(pin);
     refreshSavedRooms();
   };
 
-  const formatDate = (timestamp: number) => {
-    if (!timestamp) return '';
+  const handleDuplicateCloudPres = async (pres: SavedPresentation, e: React.MouseEvent) => {
+    e.stopPropagation();
     try {
-      const d = new Date(timestamp);
+      await savePresentationToCloud(
+        `${pres.title} (Cópia)`,
+        pres.slides || [],
+        pres.theme || 'modern-dark'
+      );
+    } catch (err) {
+      console.error('Erro ao duplicar:', err);
+    }
+  };
+
+  const formatDate = (dateVal: number | string) => {
+    if (!dateVal) return '';
+    try {
+      const d = typeof dateVal === 'number' ? new Date(dateVal) : new Date(dateVal);
       return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
     } catch {
       return '';
     }
+  };
+
+  const handleHostCloudPres = (pres: SavedPresentation) => {
+    const pin = generateRandomPin();
+    onCreateRoom({
+      roomCode: pin,
+      roomTitle: pres.title,
+      adminPassword: '1234',
+      slides: pres.slides || []
+    });
   };
 
   return (
@@ -173,14 +219,20 @@ export const HomePortal: React.FC<HomePortalProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
+          {/* User Auth Bar (Google Login / Cloud Sync / Profile) */}
+          <UserAuthBar
+            onOpenLibrary={() => setIsLibraryModalOpen(true)}
+          />
+
           <button
             onClick={() => onOpenAdminLogin()}
             className="px-3.5 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 text-xs font-semibold flex items-center gap-1.5 border border-slate-800 hover:border-slate-700 cursor-pointer transition-all shadow"
             title="Fazer login como administrador de uma sala já criada"
           >
             <Lock className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Login do Apresentador</span>
+            <span className="hidden sm:inline">Login do Apresentador</span>
+            <span className="sm:hidden">Login Sala</span>
           </button>
         </div>
       </header>
@@ -193,7 +245,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
             <div className="text-center space-y-3 max-w-2xl mx-auto">
               <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-semibold">
                 <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Plataforma em Tempo Real para Telões & Celulares</span>
+                <span>Plataforma em Tempo Real com Sincronização na Nuvem</span>
               </div>
               <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight font-display">
                 O que você deseja fazer?
@@ -202,6 +254,33 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                 Entre como jogador pelo celular para interagir ao vivo ou crie sua sala protegida para comandar a apresentação e projetar no telão.
               </p>
             </div>
+
+            {/* Login Prompt Banner if not logged in */}
+            {!user && (
+              <div className="max-w-4xl mx-auto p-4 sm:p-5 rounded-3xl bg-indigo-950/40 border border-indigo-500/30 flex flex-col sm:flex-row items-center justify-between gap-4 backdrop-blur-md shadow-xl">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center text-indigo-300 shrink-0">
+                    <Cloud className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white">
+                      Salve suas Apresentações e Salas na Nuvem
+                    </h3>
+                    <p className="text-xs text-slate-300 mt-0.5">
+                      Conecte sua conta Google para salvar seus slides, jogos e salas personalizadas e acessá-los de qualquer dispositivo.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => loginWithGoogle()}
+                  className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-98 text-white font-bold text-xs flex items-center gap-2 shrink-0 shadow-lg shadow-indigo-600/30 cursor-pointer"
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>Entrar com Google</span>
+                </button>
+              </div>
+            )}
 
             {/* Two Primary Options */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
@@ -288,7 +367,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                   <div className="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 text-xs text-slate-300 space-y-1.5">
                     <div className="flex items-center gap-2 text-rose-300 font-bold">
                       <Shield className="w-4 h-4" />
-                      <span>Protegido por Senha</span>
+                      <span>Protegido por Senha & Nuvem</span>
                     </div>
                     <p className="text-[11px] text-slate-400">
                       Nenhum participante poderá ver as respostas, palavras secretas ou telão de controle sem a senha que você definir.
@@ -309,142 +388,162 @@ export const HomePortal: React.FC<HomePortalProps> = ({
               </motion.div>
             </div>
 
-            {/* SEÇÃO DE SALAS SALVAS (Solicitado: Apresente as salas salvas na tela inicial) */}
+            {/* SEÇÃO DE APRESENTAÇÕES & SALAS SALVAS */}
             <div className="max-w-5xl mx-auto space-y-4 pt-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
                 <div className="flex items-center gap-2.5">
                   <div className="p-1.5 rounded-xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30">
                     <FolderHeart className="w-5 h-5" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold text-white tracking-tight">
-                      Salas & Apresentações Salvas
+                    <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+                      <span>Suas Apresentações & Salas</span>
+                      {user && (
+                        <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 text-[10px] font-semibold">
+                          Nuvem Google Conectada
+                        </span>
+                      )}
                     </h2>
                     <p className="text-xs text-slate-400">
-                      Acesse diretamente suas apresentações anteriores, projete em 2ª tela ou compartilhe o PIN
+                      Abra no editor, inicie uma sala ao vivo ou projete em 2ª tela
                     </p>
                   </div>
                 </div>
 
-                <button
-                  onClick={() => setActiveTab('create')}
-                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 border border-slate-700 cursor-pointer transition-all"
-                >
-                  <PlusCircle className="w-3.5 h-3.5 text-rose-400" />
-                  <span>Nova Sala</span>
-                </button>
-              </div>
+                {/* Tabs Selector: Apresentações na Nuvem vs Salas Salvas */}
+                <div className="flex items-center gap-2">
+                  {user && (
+                    <div className="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-800">
+                      <button
+                        onClick={() => setLibrarySectionTab('cloud_pres')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                          librarySectionTab === 'cloud_pres'
+                            ? 'bg-indigo-600 text-white'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <Cloud className="w-3.5 h-3.5" />
+                        <span>Apresentações ({savedPresentations.length})</span>
+                      </button>
 
-              {savedRooms.length === 0 ? (
-                <div className="p-8 rounded-3xl bg-slate-900/50 border border-slate-800 text-center space-y-3">
-                  <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mx-auto text-slate-500">
-                    <FolderHeart className="w-6 h-6" />
-                  </div>
-                  <p className="text-sm text-slate-400">Nenhuma sala personalizada salva ainda.</p>
+                      <button
+                        onClick={() => setLibrarySectionTab('saved_rooms')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                          librarySectionTab === 'saved_rooms'
+                            ? 'bg-sky-600 text-white'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <Tv className="w-3.5 h-3.5" />
+                        <span>Salas ({savedRooms.length})</span>
+                      </button>
+                    </div>
+                  )}
+
                   <button
-                    onClick={() => {
-                      storageService.initDefaultRooms();
-                      refreshSavedRooms();
-                    }}
-                    className="px-4 py-2 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 text-xs font-bold border border-indigo-500/40 cursor-pointer"
+                    onClick={() => setActiveTab('create')}
+                    className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 border border-slate-700 cursor-pointer transition-all"
                   >
-                    Restaurar Sala Padrão de Exemplo
+                    <PlusCircle className="w-3.5 h-3.5 text-rose-400" />
+                    <span>Nova Sala</span>
                   </button>
                 </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {savedRooms.map((room) => {
-                    const isDeleting = deleteConfirmPin === room.roomCode;
-                    return (
-                      <div
-                        key={room.id || room.roomCode}
-                        className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800 hover:border-indigo-500/50 transition-all shadow-xl backdrop-blur-md flex flex-col justify-between space-y-4 group relative"
-                      >
-                        {/* Header do Card da Sala */}
-                        <div>
-                          <div className="flex items-start justify-between gap-2">
-                            <h3 className="font-bold text-white text-base line-clamp-1 group-hover:text-indigo-300 transition-colors">
-                              {room.roomTitle || 'Apresentação'}
-                            </h3>
-                            <button
-                              onClick={(e) => handleCopyPin(room.roomCode, e)}
-                              className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-700 hover:border-indigo-500 font-mono text-xs text-indigo-400 font-bold flex items-center gap-1 cursor-pointer transition-colors"
-                              title="Copiar Código PIN"
-                            >
-                              <span>PIN: {room.roomCode}</span>
-                              {copiedPin === room.roomCode ? (
-                                <Check className="w-3 h-3 text-emerald-400" />
-                              ) : (
-                                <Copy className="w-3 h-3 text-slate-400" />
-                              )}
-                            </button>
-                          </div>
+              </div>
 
-                          {/* Metadados: Slides e Data */}
-                          <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-2">
-                            <span className="flex items-center gap-1">
-                              <Layers className="w-3.5 h-3.5 text-sky-400" />
-                              {room.slides?.length || 0} slides
-                            </span>
-                            {room.updatedAt && (
-                              <span className="flex items-center gap-1">
-                                <Calendar className="w-3.5 h-3.5 text-slate-500" />
-                                {formatDate(room.updatedAt)}
+              {/* LISTAGEM DE APRESENTAÇÕES NA NUVEM OU SALAS */}
+              {user && librarySectionTab === 'cloud_pres' ? (
+                /* Apresentações na Nuvem */
+                savedPresentations.length === 0 ? (
+                  <div className="p-8 rounded-3xl bg-slate-900/50 border border-slate-800 text-center space-y-3">
+                    <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mx-auto text-slate-500">
+                      <FolderHeart className="w-6 h-6" />
+                    </div>
+                    <p className="text-sm text-slate-300 font-medium">
+                      Você ainda não tem apresentações salvas na nuvem.
+                    </p>
+                    <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                      Crie uma nova sala para montar seus slides ou salve o modelo padrão na sua conta.
+                    </p>
+                    <button
+                      onClick={() => setActiveTab('create')}
+                      className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer shadow-lg"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Criar Nova Apresentação</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {savedPresentations.map((pres) => {
+                      const isDeleting = deleteConfirmPresId === pres.id;
+                      return (
+                        <div
+                          key={pres.id}
+                          className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800 hover:border-indigo-500/50 transition-all shadow-xl backdrop-blur-md flex flex-col justify-between space-y-4 group relative"
+                        >
+                          <div>
+                            <div className="flex items-start justify-between gap-2">
+                              <h3 className="font-bold text-white text-base line-clamp-1 group-hover:text-indigo-300 transition-colors">
+                                {pres.title}
+                              </h3>
+                              <span className="px-2 py-0.5 rounded-full bg-indigo-950 border border-indigo-800 text-[10px] text-indigo-300 font-semibold shrink-0">
+                                Nuvem
                               </span>
-                            )}
-                          </div>
-                        </div>
+                            </div>
 
-                        {/* Ações Rápidas: Apresentar, Projetar em 2ª Tela, Jogar */}
-                        <div className="space-y-2 pt-2 border-t border-slate-800/80">
-                          <div className="grid grid-cols-2 gap-2">
-                            {/* Botão: Abrir como Apresentador */}
-                            <button
-                              onClick={() => onOpenAdminLogin(room.roomCode)}
-                              className="py-2 px-2.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-200 border border-indigo-500/40 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all"
-                              title="Acessar console de apresentador com senha"
-                            >
-                              <Lock className="w-3 h-3 text-indigo-400" />
-                              <span>Apresentar</span>
-                            </button>
-
-                            {/* Botão: Projetar em 2ª Tela */}
-                            <button
-                              onClick={() => onProjectRoom(room.roomCode)}
-                              className="py-2 px-2.5 rounded-xl bg-sky-600/20 hover:bg-sky-600/30 text-sky-200 border border-sky-500/40 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all"
-                              title="Abrir o Telão da Apresentação em uma janela separada para projetar"
-                            >
-                              <Tv className="w-3 h-3 text-sky-400" />
-                              <span>Projetar (2ª Tela)</span>
-                            </button>
+                            <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-2">
+                              <span className="flex items-center gap-1">
+                                <Layers className="w-3.5 h-3.5 text-sky-400" />
+                                {pres.slides?.length || 0} slides
+                              </span>
+                              {pres.updatedAt && (
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                                  {formatDate(pres.updatedAt)}
+                                </span>
+                              )}
+                            </div>
                           </div>
 
-                          <div className="flex items-center justify-between gap-2 pt-1 text-[11px]">
-                            {/* Jogar como Convidado */}
-                            <button
-                              onClick={() => onJoinAsParticipant(room.roomCode)}
-                              className="text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer"
-                            >
-                              <Gamepad2 className="w-3 h-3 text-indigo-400" />
-                              <span>Jogar no Celular</span>
-                            </button>
+                          <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                            <div className="grid grid-cols-2 gap-2">
+                              {/* Abrir no Editor */}
+                              {onLoadPresentation && (
+                                <button
+                                  onClick={() => onLoadPresentation(pres)}
+                                  className="py-2 px-2.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-200 border border-indigo-500/40 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+                                  title="Abrir no editor de slides"
+                                >
+                                  <Edit3 className="w-3 h-3 text-indigo-400" />
+                                  <span>Editar</span>
+                                </button>
+                              )}
 
-                            <div className="flex items-center gap-2">
-                              {/* Duplicar */}
+                              {/* Iniciar Sala com esta Apresentação */}
                               <button
-                                onClick={(e) => handleDuplicateRoom(room.roomCode, e)}
-                                className="text-slate-400 hover:text-slate-200 cursor-pointer p-1 rounded hover:bg-slate-800"
-                                title="Duplicar Sala"
+                                onClick={() => handleHostCloudPres(pres)}
+                                className="py-2 px-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-200 border border-emerald-500/40 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+                                title="Criar sala ao vivo com esta apresentação"
                               >
-                                <Copy className="w-3.5 h-3.5" />
+                                <Play className="w-3 h-3 text-emerald-400" />
+                                <span>Apresentar</span>
+                              </button>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-2 pt-1 text-[11px]">
+                              <button
+                                onClick={(e) => handleDuplicateCloudPres(pres, e)}
+                                className="text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer"
+                              >
+                                <Copy className="w-3 h-3" />
+                                <span>Duplicar</span>
                               </button>
 
-                              {/* Excluir com confirmação */}
                               {isDeleting ? (
                                 <div className="flex items-center gap-1 bg-rose-950/80 px-2 py-0.5 rounded-lg border border-rose-700">
                                   <span className="text-[10px] text-rose-300">Excluir?</span>
                                   <button
-                                    onClick={(e) => handleDeleteRoom(room.roomCode, e)}
+                                    onClick={(e) => handleDeleteCloudPres(pres.id, e)}
                                     className="text-rose-400 font-bold hover:text-rose-200 cursor-pointer px-1"
                                   >
                                     Sim
@@ -452,7 +551,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setDeleteConfirmPin(null);
+                                      setDeleteConfirmPresId(null);
                                     }}
                                     className="text-slate-400 hover:text-white cursor-pointer px-1"
                                   >
@@ -463,10 +562,10 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setDeleteConfirmPin(room.roomCode);
+                                    setDeleteConfirmPresId(pres.id);
                                   }}
                                   className="text-slate-500 hover:text-rose-400 cursor-pointer p-1 rounded hover:bg-slate-800 transition-colors"
-                                  title="Excluir Sala"
+                                  title="Excluir da Nuvem"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
@@ -474,10 +573,156 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                             </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )
+              ) : (
+                /* Salas Salvas (Locais / Dispositivo) */
+                savedRooms.length === 0 ? (
+                  <div className="p-8 rounded-3xl bg-slate-900/50 border border-slate-800 text-center space-y-3">
+                    <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mx-auto text-slate-500">
+                      <FolderHeart className="w-6 h-6" />
+                    </div>
+                    <p className="text-sm text-slate-400">Nenhuma sala personalizada salva ainda.</p>
+                    <button
+                      onClick={() => {
+                        storageService.initDefaultRooms();
+                        refreshSavedRooms();
+                      }}
+                      className="px-4 py-2 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 text-xs font-bold border border-indigo-500/40 cursor-pointer"
+                    >
+                      Restaurar Sala Padrão de Exemplo
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {savedRooms.map((room) => {
+                      const isDeleting = deleteConfirmPin === room.roomCode;
+                      return (
+                        <div
+                          key={room.id || room.roomCode}
+                          className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800 hover:border-indigo-500/50 transition-all shadow-xl backdrop-blur-md flex flex-col justify-between space-y-4 group relative"
+                        >
+                          {/* Header do Card da Sala */}
+                          <div>
+                            <div className="flex items-start justify-between gap-2">
+                              <h3 className="font-bold text-white text-base line-clamp-1 group-hover:text-indigo-300 transition-colors">
+                                {room.roomTitle || 'Apresentação'}
+                              </h3>
+                              <button
+                                onClick={(e) => handleCopyPin(room.roomCode, e)}
+                                className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-700 hover:border-indigo-500 font-mono text-xs text-indigo-400 font-bold flex items-center gap-1 cursor-pointer transition-colors shrink-0"
+                                title="Copiar Código PIN"
+                              >
+                                <span>PIN: {room.roomCode}</span>
+                                {copiedPin === room.roomCode ? (
+                                  <Check className="w-3 h-3 text-emerald-400" />
+                                ) : (
+                                  <Copy className="w-3 h-3 text-slate-400" />
+                                )}
+                              </button>
+                            </div>
+
+                            {/* Metadados: Slides e Data */}
+                            <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-2">
+                              <span className="flex items-center gap-1">
+                                <Layers className="w-3.5 h-3.5 text-sky-400" />
+                                {room.slides?.length || 0} slides
+                              </span>
+                              {room.updatedAt && (
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                                  {formatDate(room.updatedAt)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Ações Rápidas: Apresentar, Projetar em 2ª Tela, Jogar */}
+                          <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                            <div className="grid grid-cols-2 gap-2">
+                              {/* Botão: Abrir como Apresentador */}
+                              <button
+                                onClick={() => onOpenAdminLogin(room.roomCode)}
+                                className="py-2 px-2.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-200 border border-indigo-500/40 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+                                title="Acessar console de apresentador com senha"
+                              >
+                                <Lock className="w-3 h-3 text-indigo-400" />
+                                <span>Apresentar</span>
+                              </button>
+
+                              {/* Botão: Projetar em 2ª Tela */}
+                              <button
+                                onClick={() => onProjectRoom(room.roomCode)}
+                                className="py-2 px-2.5 rounded-xl bg-sky-600/20 hover:bg-sky-600/30 text-sky-200 border border-sky-500/40 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+                                title="Abrir o Telão da Apresentação em uma janela separada para projetar"
+                              >
+                                <Tv className="w-3 h-3 text-sky-400" />
+                                <span>Projetar (2ª Tela)</span>
+                              </button>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-2 pt-1 text-[11px]">
+                              {/* Jogar como Convidado */}
+                              <button
+                                onClick={() => onJoinAsParticipant(room.roomCode)}
+                                className="text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer"
+                              >
+                                <Gamepad2 className="w-3 h-3 text-indigo-400" />
+                                <span>Jogar no Celular</span>
+                              </button>
+
+                              <div className="flex items-center gap-2">
+                                {/* Duplicar */}
+                                <button
+                                  onClick={(e) => handleDuplicateRoom(room.roomCode, e)}
+                                  className="text-slate-400 hover:text-slate-200 cursor-pointer p-1 rounded hover:bg-slate-800"
+                                  title="Duplicar Sala"
+                                >
+                                  <Copy className="w-3.5 h-3.5" />
+                                </button>
+
+                                {/* Excluir com confirmação */}
+                                {isDeleting ? (
+                                  <div className="flex items-center gap-1 bg-rose-950/80 px-2 py-0.5 rounded-lg border border-rose-700">
+                                    <span className="text-[10px] text-rose-300">Excluir?</span>
+                                    <button
+                                      onClick={(e) => handleDeleteRoom(room.roomCode, e)}
+                                      className="text-rose-400 font-bold hover:text-rose-200 cursor-pointer px-1"
+                                    >
+                                      Sim
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setDeleteConfirmPin(null);
+                                      }}
+                                      className="text-slate-400 hover:text-white cursor-pointer px-1"
+                                    >
+                                      Não
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setDeleteConfirmPin(room.roomCode);
+                                    }}
+                                    className="text-slate-500 hover:text-rose-400 cursor-pointer p-1 rounded hover:bg-slate-800 transition-colors"
+                                    title="Excluir Sala"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )
               )}
             </div>
           </div>
@@ -656,10 +901,31 @@ export const HomePortal: React.FC<HomePortalProps> = ({
         )}
       </main>
 
+      {/* Cloud Library Modal */}
+      <CloudLibraryModal
+        isOpen={isLibraryModalOpen}
+        onClose={() => setIsLibraryModalOpen(false)}
+        onLoadPresentation={(pres) => {
+          if (onLoadPresentation) onLoadPresentation(pres);
+        }}
+        onHostPresentation={(pres) => {
+          handleHostCloudPres(pres);
+        }}
+        onOpenRoomConsole={(code) => {
+          onOpenAdminLogin(code);
+        }}
+        onProjectRoom={(code) => {
+          onProjectRoom(code);
+        }}
+        onCreateNewPresentation={() => {
+          if (onCreateBlankPresentation) onCreateBlankPresentation();
+        }}
+      />
+
       {/* Bottom Footer */}
       <footer className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between text-xs text-slate-500 border-t border-slate-900 z-10">
         <div>ApresentaLive • Plataforma Interativa em Tempo Real</div>
-        <div>Projeção em 2ª Tela & Celulares Sincronizados</div>
+        <div>Sincronização em Nuvem (Google Firestore) & Telões</div>
       </footer>
     </div>
   );

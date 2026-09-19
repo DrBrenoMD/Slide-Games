@@ -1,0 +1,65 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Profile information for registered users and presenters",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Presentation": {
+      "title": "Presentation",
+      "description": "User created presentation with slides and interactive elements",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "title": { "type": "string", "maxLength": 200 },
+        "slides": { "type": "array" },
+        "theme": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "title", "slides"]
+    },
+    "SavedRoom": {
+      "title": "SavedRoom",
+      "description": "Saved live room session associated with a presenter",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "roomCode": { "type": "string", "maxLength": 20 },
+        "ownerId": { "type": "string" },
+        "presentationTitle": { "type": "string", "maxLength": 200 },
+        "presentationId": { "type": "string" },
+        "slides": { "type": "array" },
+        "participantsCount": { "type": "number" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "roomCode", "ownerId", "presentationTitle"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profile document storing basic identity info"
+    },
+    "/users/{userId}/presentations/{presentationId}": {
+      "schema": { "$ref": "#/entities/Presentation" },
+      "description": "Presentations authored and saved by the user"
+    },
+    "/users/{userId}/rooms/{roomId}": {
+      "schema": { "$ref": "#/entities/SavedRoom" },
+      "description": "Presentation room sessions created and saved by the user"
+    }
+  }
+}

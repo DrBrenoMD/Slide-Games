@@ -22,6 +22,7 @@ import { TeamManagerModal } from './components/presenter/TeamManagerModal';
 import { ParticipantJoin } from './components/participant/ParticipantJoin';
 import { ParticipantView } from './components/participant/ParticipantView';
 import { HomePortal } from './components/home/HomePortal';
+import { UserAuthBar } from './components/common/UserAuthBar';
 import {
   Smartphone,
   Monitor,
@@ -1051,6 +1052,11 @@ export default function App() {
               <span>Entrar como Apresentador</span>
             </button>
           )}
+
+          {/* Login na Conta Google / Nuvem */}
+          <div className="hidden sm:block pl-2 border-l border-slate-800">
+            <UserAuthBar />
+          </div>
         </div>
       </header>
 
@@ -1210,6 +1216,11 @@ export default function App() {
               onUpdateRoomSettings={handleUpdateRoomSettings}
               onLoadSavedRoom={handleLoadSavedRoom}
               onCreateNewRoom={handleCreateNewRoom}
+              onLoadPresentation={(pres) => {
+                setRoomTitle(pres.title);
+                setSlides(pres.slides);
+                setCurrentSlideIndex(0);
+              }}
             />
           )
         )}

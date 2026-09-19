@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Slide, SlideType, Team, TeamMode } from '../../types';
+import { Slide, SlideType, Team, TeamMode, SavedPresentation } from '../../types';
 import { PRESET_WORD_CATEGORIES, getWordsForCategory, getRandomWordForCategory, PRESET_TEAMS } from '../../data/presetWords';
 import { storageService, SavedRoom } from '../../services/storage';
 import { createDefaultSlide, convertSlideType } from '../../utils/slidePresets';
+import { useAuth } from '../../context/AuthContext';
+import { UserAuthBar } from '../common/UserAuthBar';
 import { NewSlideModal } from './NewSlideModal';
 import {
   Plus,
@@ -36,7 +38,11 @@ import {
   Lock,
   Radio,
   Sliders,
-  AlertCircle
+  AlertCircle,
+  Cloud,
+  Layers,
+  Calendar,
+  LogIn
 } from 'lucide-react';
 
 interface SlideEditorProps {
@@ -59,7 +65,9 @@ interface SlideEditorProps {
   }) => void;
   onLoadSavedRoom?: (room: SavedRoom) => void;
   onCreateNewRoom?: (title: string, pin: string, password: string) => void;
+  onLoadPresentation?: (pres: SavedPresentation) => void;
 }
+
 
 export const SlideEditor: React.FC<SlideEditorProps> = ({
   slides,
@@ -74,17 +82,21 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
   teams = PRESET_TEAMS,
   onUpdateRoomSettings,
   onLoadSavedRoom,
-  onCreateNewRoom
+  onCreateNewRoom,
+  onLoadPresentation
 }) => {
   const currentSlide = slides[currentSlideIndex] || slides[0];
+  const { user, savedPresentations, savePresentationToCloud, removePresentationFromCloud, loginWithGoogle } = useAuth();
 
   // Abas principais da tela de configurações
   const [mainView, setMainView] = useState<'slides' | 'presenter_functions' | 'saved_rooms'>('slides');
+  const [savedSourceTab, setSavedSourceTab] = useState<'cloud' | 'local'>('cloud');
   const [activeSlideTab, setActiveSlideTab] = useState<'content' | 'theme' | 'timing'>('content');
   const [newWordInput, setNewWordInput] = useState('');
   const [isNewSlideModalOpen, setIsNewSlideModalOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isSavingCloud, setIsSavingCloud] = useState(false);
 
   // Estados locais para salas salvas
   const [savedRooms, setSavedRooms] = useState<SavedRoom[]>([]);
@@ -122,7 +134,28 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Salvar a sala atual no storage
+  // Salvar apresentação diretamente na Nuvem (Google Firestore)
+  const handleSaveToCloud = async () => {
+    if (!user) {
+      const confirmLogin = window.confirm('Você precisa estar conectado com sua conta Google para salvar na nuvem. Deseja fazer login agora?');
+      if (confirmLogin) {
+        await loginWithGoogle();
+      }
+      return;
+    }
+
+    try {
+      setIsSavingCloud(true);
+      await savePresentationToCloud(tempRoomTitle || 'Minha Apresentação', slides);
+      showToast('✓ Apresentação salva na sua nuvem Google com sucesso!');
+    } catch (err: any) {
+      showToast('⚠️ Erro ao salvar na nuvem: ' + (err.message || 'Falha na conexão'));
+    } finally {
+      setIsSavingCloud(false);
+    }
+  };
+
+  // Salvar a sala atual no storage local
   const handleSaveCurrentRoom = () => {
     const currentData: SavedRoom = {
       id: `room-${roomCode}`,
@@ -146,7 +179,7 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
         teams: tempTeams
       });
     }
-    showToast(`✓ Sala "${tempRoomTitle}" salva com sucesso!`);
+    showToast(`✓ Sala "${tempRoomTitle}" salva no dispositivo!`);
   };
 
   // Criar nova sala
@@ -473,20 +506,32 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
             }`}
           >
             <Save className="w-3.5 h-3.5" />
-            <span>Salas Salvas ({savedRooms.length})</span>
+            <span>Salas & Nuvem ({user ? savedPresentations.length : savedRooms.length})</span>
           </button>
         </div>
 
-        {/* Botão de Iniciar Apresentação */}
+        {/* Ações de Salvar e Iniciar */}
         <div className="flex items-center gap-2">
+          {/* Botão Salvar na Nuvem */}
+          <button
+            type="button"
+            onClick={handleSaveToCloud}
+            disabled={isSavingCloud}
+            className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white text-xs font-bold shadow-md shadow-sky-600/20 flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 disabled:opacity-50"
+            title="Salvar esta apresentação na sua conta Google para acessar de qualquer aparelho"
+          >
+            <Cloud className={`w-3.5 h-3.5 text-sky-200 ${isSavingCloud ? 'animate-bounce' : ''}`} />
+            <span>{isSavingCloud ? 'Salvando...' : 'Salvar na Nuvem'}</span>
+          </button>
+
           <button
             type="button"
             onClick={handleSaveCurrentRoom}
             className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 flex items-center gap-1.5 cursor-pointer transition-colors"
-            title="Salvar alterações no armazenamento local"
+            title="Salvar alterações no armazenamento local do navegador"
           >
             <Save className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="hidden sm:inline">Salvar Sala</span>
+            <span className="hidden sm:inline">Salvar Local</span>
           </button>
 
           <button
@@ -497,6 +542,10 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
             <Play className="w-3.5 h-3.5 fill-current" />
             <span>Apresentar Telão</span>
           </button>
+
+          <div className="hidden lg:block pl-2 border-l border-slate-800">
+            <UserAuthBar />
+          </div>
         </div>
       </div>
 
@@ -1429,21 +1478,31 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
             <div>
               <span className="text-xs uppercase tracking-wider font-extrabold text-emerald-400">
-                Armazenamento Local Persistente
+                Gerenciador de Apresentações
               </span>
               <h3 className="text-2xl font-black text-white mt-1">
                 Salas & Apresentações Salvas
               </h3>
               <p className="text-xs sm:text-sm text-slate-400 mt-1">
-                Suas salas criadas e apresentações ficam salvas no seu navegador para uso contínuo.
+                Acesse suas apresentações sincronizadas na nuvem Google ou guardadas na memória local.
               </p>
             </div>
 
             <div className="flex items-center gap-2">
               <button
                 type="button"
+                onClick={handleSaveToCloud}
+                disabled={isSavingCloud}
+                className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-lg transition-transform active:scale-95 disabled:opacity-50"
+              >
+                <Cloud className="w-4 h-4" />
+                <span>Salvar Atual na Nuvem</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setIsCreatingRoomModal(true)}
-                className="px-4 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-lg transition-transform active:scale-95"
+                className="px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-lg transition-transform active:scale-95"
               >
                 <Plus className="w-4 h-4" />
                 <span>+ Criar Nova Sala</span>
@@ -1451,100 +1510,229 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
             </div>
           </div>
 
-          {/* Lista de Salas Salvas */}
-          <div className="space-y-3">
-            {savedRooms.map((room) => {
-              const isCurrent = room.roomCode === roomCode;
-              return (
-                <div
-                  key={room.id || room.roomCode}
-                  className={`p-5 rounded-3xl border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
-                    isCurrent
-                      ? 'bg-emerald-950/30 border-emerald-500/70 shadow-lg ring-1 ring-emerald-500/50'
-                      : 'bg-slate-900 border-slate-800 hover:border-slate-700'
-                  }`}
-                >
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs font-black px-2.5 py-0.5 rounded-full bg-slate-800 text-indigo-300 border border-slate-700">
-                        PIN: {room.roomCode}
-                      </span>
-                      {isCurrent && (
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-black uppercase tracking-wider border border-emerald-500/30">
-                          Sala Ativa Agora
-                        </span>
-                      )}
-                    </div>
+          {/* Abas de Origem: Nuvem vs Local */}
+          <div className="flex items-center gap-2 border-b border-slate-800/80 pb-3">
+            <button
+              type="button"
+              onClick={() => setSavedSourceTab('cloud')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                savedSourceTab === 'cloud'
+                  ? 'bg-sky-600 text-white shadow-lg shadow-sky-600/20'
+                  : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+              }`}
+            >
+              <Cloud className="w-4 h-4" />
+              <span>Nuvem Google ({savedPresentations.length})</span>
+            </button>
 
-                    <h4 className="text-lg font-black text-white">
-                      {room.roomTitle}
-                    </h4>
-
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
-                      <span>📑 {room.slides?.length || 0} slides</span>
-                      <span>•</span>
-                      <span>🛡️ {room.teams?.length || 0} times</span>
-                      <span>•</span>
-                      <span>🔑 Senha: {room.presenterPassword}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 self-end sm:self-center">
-                    {!isCurrent ? (
-                      <button
-                        type="button"
-                        onClick={() => handleLoadRoom(room)}
-                        className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow transition-all"
-                      >
-                        <FolderOpen className="w-3.5 h-3.5" />
-                        <span>Carregar Sala</span>
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={handleSaveCurrentRoom}
-                        className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow transition-all"
-                      >
-                        <Save className="w-3.5 h-3.5" />
-                        <span>Salvar Novamente</span>
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const clone: SavedRoom = {
-                          ...room,
-                          id: `room-${Date.now()}`,
-                          roomCode: String(Math.floor(100000 + Math.random() * 900000)),
-                          roomTitle: `${room.roomTitle} (Cópia)`,
-                          createdAt: Date.now(),
-                          updatedAt: Date.now()
-                        };
-                        storageService.saveRoom(clone);
-                        refreshSavedRooms();
-                        showToast(`Cópia da sala criada com PIN ${clone.roomCode}`);
-                      }}
-                      className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer"
-                      title="Duplicar esta sala"
-                    >
-                      <Copy className="w-4 h-4" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteRoom(room.roomCode, room.roomTitle)}
-                      disabled={savedRooms.length <= 1}
-                      className="p-2 rounded-xl bg-slate-800 hover:bg-rose-900/50 text-slate-400 hover:text-rose-300 text-xs font-bold disabled:opacity-20 cursor-pointer"
-                      title="Excluir sala"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+            <button
+              type="button"
+              onClick={() => setSavedSourceTab('local')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                savedSourceTab === 'local'
+                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20'
+                  : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+              }`}
+            >
+              <Save className="w-4 h-4" />
+              <span>Memória Local ({savedRooms.length})</span>
+            </button>
           </div>
+
+          {/* TAB NUVEM GOOGLE */}
+          {savedSourceTab === 'cloud' && (
+            <div className="space-y-4">
+              {!user ? (
+                <div className="p-8 rounded-3xl bg-slate-900/60 border border-slate-800 text-center space-y-4">
+                  <div className="w-14 h-14 rounded-2xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center mx-auto text-sky-400">
+                    <Cloud className="w-7 h-7" />
+                  </div>
+                  <div>
+                    <h4 className="text-base font-bold text-white">Faça login para ver sua Biblioteca na Nuvem</h4>
+                    <p className="text-xs text-slate-400 max-w-md mx-auto mt-1">
+                      Conecte sua conta Google para salvar apresentações de forma segura e acessá-las em qualquer computador, celular ou projetor.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={loginWithGoogle}
+                    className="px-6 py-2.5 rounded-2xl bg-white text-slate-950 hover:bg-slate-100 font-bold text-xs shadow-xl flex items-center gap-2 mx-auto cursor-pointer transition-all active:scale-95"
+                  >
+                    <LogIn className="w-4 h-4" />
+                    <span>Entrar com Google</span>
+                  </button>
+                </div>
+              ) : savedPresentations.length === 0 ? (
+                <div className="p-8 rounded-3xl bg-slate-900/40 border border-slate-800/80 text-center space-y-3">
+                  <p className="text-sm font-semibold text-slate-300">Você ainda não tem apresentações salvas na Nuvem.</p>
+                  <button
+                    type="button"
+                    onClick={handleSaveToCloud}
+                    disabled={isSavingCloud}
+                    className="px-5 py-2.5 rounded-2xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow-lg flex items-center gap-2 mx-auto cursor-pointer"
+                  >
+                    <Cloud className="w-4 h-4" />
+                    <span>Salvar Apresentação Atual na Nuvem</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {savedPresentations.map((pres) => (
+                    <div
+                      key={pres.id}
+                      className="p-5 rounded-3xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+                    >
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-0.5 rounded-full bg-sky-500/20 text-sky-300 text-[10px] font-black uppercase tracking-wider border border-sky-500/30 flex items-center gap-1">
+                            <Cloud className="w-3 h-3" /> Nuvem
+                          </span>
+                        </div>
+
+                        <h4 className="text-lg font-black text-white">{pres.title}</h4>
+
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+                          <span>📑 {pres.slides?.length || 0} slides</span>
+                          <span>•</span>
+                          <span>📅 {new Date(pres.updatedAt || pres.createdAt).toLocaleDateString('pt-BR')}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 self-end sm:self-center">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (onLoadPresentation) {
+                              onLoadPresentation(pres);
+                            } else {
+                              onUpdateSlides(pres.slides);
+                              onSelectSlide(0);
+                            }
+                            showToast(`✓ Apresentação "${pres.title}" carregada no Editor!`);
+                          }}
+                          className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow transition-all"
+                        >
+                          <FolderOpen className="w-3.5 h-3.5" />
+                          <span>Carregar no Editor</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (window.confirm(`Excluir a apresentação "${pres.title}" da nuvem?`)) {
+                              await removePresentationFromCloud(pres.id);
+                              showToast('Apresentação excluída da nuvem.');
+                            }
+                          }}
+                          className="p-2 rounded-xl bg-slate-800 hover:bg-rose-900/50 text-slate-400 hover:text-rose-300 text-xs font-bold cursor-pointer"
+                          title="Excluir da Nuvem"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB MEMÓRIA LOCAL */}
+          {savedSourceTab === 'local' && (
+            <div className="space-y-3">
+              {savedRooms.map((room) => {
+                const isCurrent = room.roomCode === roomCode;
+                return (
+                  <div
+                    key={room.id || room.roomCode}
+                    className={`p-5 rounded-3xl border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
+                      isCurrent
+                        ? 'bg-emerald-950/30 border-emerald-500/70 shadow-lg ring-1 ring-emerald-500/50'
+                        : 'bg-slate-900 border-slate-800 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs font-black px-2.5 py-0.5 rounded-full bg-slate-800 text-indigo-300 border border-slate-700">
+                          PIN: {room.roomCode}
+                        </span>
+                        {isCurrent && (
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-black uppercase tracking-wider border border-emerald-500/30">
+                            Sala Ativa Agora
+                          </span>
+                        )}
+                      </div>
+
+                      <h4 className="text-lg font-black text-white">
+                        {room.roomTitle}
+                      </h4>
+
+                      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+                        <span>📑 {room.slides?.length || 0} slides</span>
+                        <span>•</span>
+                        <span>🛡️ {room.teams?.length || 0} times</span>
+                        <span>•</span>
+                        <span>🔑 Senha: {room.presenterPassword}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                      {!isCurrent ? (
+                        <button
+                          type="button"
+                          onClick={() => handleLoadRoom(room)}
+                          className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow transition-all"
+                        >
+                          <FolderOpen className="w-3.5 h-3.5" />
+                          <span>Carregar Sala</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleSaveCurrentRoom}
+                          className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow transition-all"
+                        >
+                          <Save className="w-3.5 h-3.5" />
+                          <span>Salvar Novamente</span>
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const clone: SavedRoom = {
+                            ...room,
+                            id: `room-${Date.now()}`,
+                            roomCode: String(Math.floor(100000 + Math.random() * 900000)),
+                            roomTitle: `${room.roomTitle} (Cópia)`,
+                            createdAt: Date.now(),
+                            updatedAt: Date.now()
+                          };
+                          storageService.saveRoom(clone);
+                          refreshSavedRooms();
+                          showToast(`Cópia da sala criada com PIN ${clone.roomCode}`);
+                        }}
+                        className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer"
+                        title="Duplicar esta sala"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteRoom(room.roomCode, room.roomTitle)}
+                        disabled={savedRooms.length <= 1}
+                        className="p-2 rounded-xl bg-slate-800 hover:bg-rose-900/50 text-slate-400 hover:text-rose-300 text-xs font-bold disabled:opacity-20 cursor-pointer"
+                        title="Excluir sala"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 

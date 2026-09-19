@@ -9,6 +9,8 @@ import {
 } from '../../types';
 import { PRESET_WORD_CATEGORIES, getRandomWordForCategory } from '../../data/presetWords';
 import { AgentSelectorModal } from '../slides/AgentSelectorModal';
+import { useAuth } from '../../context/AuthContext';
+import { UserAuthBar } from '../common/UserAuthBar';
 import {
   ChevronLeft,
   ChevronRight,
@@ -31,7 +33,8 @@ import {
   HelpCircle,
   Clock,
   Tv,
-  ExternalLink
+  ExternalLink,
+  Cloud
 } from 'lucide-react';
 
 interface PresenterConsoleProps {
@@ -92,8 +95,33 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
   onOpenProjectorWindow
 }) => {
   const currentSlide = slides[currentSlideIndex] || slides[0];
+  const { user, savePresentationToCloud, loginWithGoogle } = useAuth();
   const [hideSecrets, setHideSecrets] = useState(false);
   const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
+  const [cloudFeedback, setCloudFeedback] = useState<string | null>(null);
+  const [isSavingCloud, setIsSavingCloud] = useState(false);
+
+  const handleSaveToCloud = async () => {
+    if (!user) {
+      const confirmLogin = window.confirm('Faça login com sua conta Google para salvar sua apresentação na nuvem. Continuar?');
+      if (confirmLogin) {
+        await loginWithGoogle();
+      }
+      return;
+    }
+
+    try {
+      setIsSavingCloud(true);
+      await savePresentationToCloud(`Apresentação - Sala ${roomCode}`, slides);
+      setCloudFeedback('✓ Salvo na Nuvem!');
+      setTimeout(() => setCloudFeedback(null), 3500);
+    } catch (err: any) {
+      setCloudFeedback('⚠️ Erro ao salvar');
+      setTimeout(() => setCloudFeedback(null), 3500);
+    } finally {
+      setIsSavingCloud(false);
+    }
+  };
 
   const impostorConfig = currentSlide.impostorConfig || {
     mode: 'classic',
@@ -215,8 +243,19 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
           </div>
         </div>
 
-        {/* Quick actions: Telão, Configurações, Bots */}
+        {/* Quick actions: Salvar na Nuvem, Telão, Configurações, Bots */}
         <div className="flex items-center gap-2">
+          {/* Botão Salvar na Nuvem */}
+          <button
+            onClick={handleSaveToCloud}
+            disabled={isSavingCloud}
+            className="px-3 py-1.5 rounded-xl bg-sky-600/20 hover:bg-sky-600/30 text-sky-200 border border-sky-500/40 text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow transition-all active:scale-95 disabled:opacity-50"
+            title="Salvar apresentação atual na sua conta Google"
+          >
+            <Cloud className={`w-3.5 h-3.5 text-sky-400 ${isSavingCloud ? 'animate-bounce' : ''}`} />
+            <span>{isSavingCloud ? 'Salvando...' : cloudFeedback || 'Salvar na Nuvem'}</span>
+          </button>
+
           {participants.length < 4 && (
             <button
               onClick={onAddSimulatedParticipants}
@@ -255,6 +294,10 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
           >
             <span>Configurações</span>
           </button>
+
+          <div className="hidden lg:block pl-2 border-l border-slate-800">
+            <UserAuthBar />
+          </div>
         </div>
       </div>
 

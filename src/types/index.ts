@@ -163,6 +163,39 @@ export interface LiveReaction {
   x: number; // porcentagem horizontal de surgimento
 }
 
+export interface UserProfile {
+  uid: string;
+  email: string;
+  displayName: string;
+  photoURL?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SavedPresentation {
+  id: string;
+  ownerId: string;
+  title: string;
+  slides: Slide[];
+  theme?: string;
+  slideCount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SavedRoom {
+  id: string;
+  roomCode: string;
+  ownerId: string;
+  presentationTitle: string;
+  presentationId?: string;
+  slides?: Slide[];
+  participantsCount: number;
+  status: 'active' | 'closed' | 'archived';
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface RoomState {
   roomCode: string;
   presenterPassword: string;
@@ -183,3 +216,4 @@ export interface RoomState {
   termSubmissions: TermSubmission[];
   reactions: LiveReaction[];
 }
+
