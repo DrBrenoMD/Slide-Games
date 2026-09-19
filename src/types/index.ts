@@ -279,7 +279,7 @@ export interface Slide {
   // Para O Infiltrado
   impostorConfig?: ImpostorConfig;
   
-  // Customização visual estilo Canva
+  // Customização visual estilo Canva & Temas Visuais Avançados
   theme: {
     id?: string;
     name?: string;
@@ -294,6 +294,23 @@ export interface Slide {
     fontFamily?: string;
     headingFontFamily?: string;
     category?: string;
+    overlayGraphic?:
+      | 'cyber-grid'
+      | 'dots'
+      | 'geometric-shapes'
+      | 'leaves-organic'
+      | 'stars-sparkle'
+      | 'film-grain'
+      | 'manga-speedlines'
+      | 'corporate-lines'
+      | 'neon-glow'
+      | 'vintage-frame'
+      | 'synthwave-sun'
+      | 'pixel-matrix'
+      | 'none';
+    cardStyle?: 'glass' | 'solid' | 'neon' | 'paper' | 'brutalist' | 'minimal' | 'cyber';
+    accentBorderRadius?: string;
+    glowIntensity?: 'none' | 'low' | 'medium' | 'high';
   };
   animation: SlideAnimationConfig;
 }

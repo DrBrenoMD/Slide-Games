@@ -9,6 +9,8 @@ import { ImpostorSlideRenderer } from '../slides/ImpostorSlideRenderer';
 import { AddElementModal } from './AddElementModal';
 import { ElementPropertyInspector } from './ElementPropertyInspector';
 import { ThemeGalleryModal } from './ThemeGalleryModal';
+import { ThemeVisualDecorator } from '../themes/ThemeVisualDecorator';
+import { getComputedThemeStyles } from '../../utils/themeStyles';
 import { convertPresetSlideToCanvasElements } from '../../utils/slidePresets';
 import {
   Plus,
@@ -92,6 +94,7 @@ export const SlideCanvasEditor: React.FC<SlideCanvasEditorProps> = ({
 
   const elements = slide.elements || [];
   const selectedElement = elements.find((el) => el.id === selectedElementId) || null;
+  const canvasThemeStyles = getComputedThemeStyles(slide.theme);
 
   // Escuta global da Área de Transferência (Clipboard Paste de Imagens)
   useEffect(() => {
@@ -816,32 +819,32 @@ export const SlideCanvasEditor: React.FC<SlideCanvasEditorProps> = ({
             }}
             key={previewKey}
             className="w-full aspect-video rounded-3xl overflow-hidden relative shadow-2xl border-2 border-slate-800 select-none cursor-default"
-            style={{
-              backgroundColor: slide.theme?.backgroundColor || '#0F172A',
-              color: slide.theme?.textColor || '#FFFFFF'
-            }}
+            style={canvasThemeStyles.containerStyle}
           >
-            {/* Fundo Padrão / Grade Sutil de Alinhamento */}
-            <div
-              className="absolute inset-0 pointer-events-none opacity-[0.03]"
-              style={{
-                backgroundImage: 'radial-gradient(#FFFFFF 1px, transparent 1px)',
-                backgroundSize: '24px 24px'
-              }}
-            />
+                {/* Visual Decorator Overlay (Cyber-grid, Stars, Organic leaves, etc.) */}
+                <ThemeVisualDecorator theme={slide.theme} />
 
-            {/* Conteúdo Base do Slide de Fundo (Se houver) */}
-            <div className="w-full h-full pointer-events-none">
-              <SlideBasePreview slide={slide} />
-            </div>
+                {/* Fundo Padrão / Grade Sutil de Alinhamento */}
+                <div
+                  className="absolute inset-0 pointer-events-none opacity-[0.03]"
+                  style={{
+                    backgroundImage: 'radial-gradient(#FFFFFF 1px, transparent 1px)',
+                    backgroundSize: '24px 24px'
+                  }}
+                />
 
-            {/* Overlay com Todos os Elementos Personalizados e Mídias */}
-            <AnimatedSlideElementsOverlay
-              elements={elements}
-              selectedElementId={selectedElementId}
-              onSelectElement={setSelectedElementId}
-              isInteractive={!isPreviewingAnimations}
-            />
+                {/* Conteúdo Base do Slide de Fundo (Se houver) */}
+                <div className="w-full h-full pointer-events-none relative z-10">
+                  <SlideBasePreview slide={slide} />
+                </div>
+
+                {/* Overlay com Todos os Elementos Personalizados e Mídias */}
+                <AnimatedSlideElementsOverlay
+                  elements={elements}
+                  selectedElementId={selectedElementId}
+                  onSelectElement={setSelectedElementId}
+                  isInteractive={!isPreviewingAnimations}
+                />
 
             {/* Guias Magnéticas de Alinhamento Ativas (Linhas e Badges) */}
             {activeGuides.map((guide, idx) => (

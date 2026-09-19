@@ -90,6 +90,11 @@ export const ThemeGalleryModal: React.FC<ThemeGalleryModalProps> = ({
         cardBackgroundColor: selectedTheme.cardBackgroundColor,
         cardBorderColor: selectedTheme.cardBorderColor,
         fontFamily: selectedTheme.fontFamily,
+        headingFontFamily: selectedTheme.headingFontFamily || selectedTheme.fontFamily,
+        overlayGraphic: selectedTheme.overlayGraphic,
+        cardStyle: selectedTheme.cardStyle,
+        accentBorderRadius: selectedTheme.accentBorderRadius,
+        glowIntensity: selectedTheme.glowIntensity,
         category: selectedTheme.category
       };
 
@@ -112,6 +117,11 @@ export const ThemeGalleryModal: React.FC<ThemeGalleryModalProps> = ({
         cardBackgroundColor: customTheme.cardBackgroundColor,
         cardBorderColor: customTheme.cardBorderColor,
         fontFamily: customTheme.fontFamily,
+        headingFontFamily: customTheme.fontFamily,
+        overlayGraphic: 'dots',
+        cardStyle: 'glass',
+        accentBorderRadius: '24px',
+        glowIntensity: 'medium',
         category: 'personalizado'
       };
 

@@ -10,6 +10,8 @@ import { TermSprintSlideRenderer } from '../slides/TermSprintSlideRenderer';
 import { ImagePinSlideRenderer } from '../slides/ImagePinSlideRenderer';
 import { WordCloudSlideRenderer } from '../slides/WordCloudSlideRenderer';
 import { ImpostorSlideRenderer } from '../slides/ImpostorSlideRenderer';
+import { ThemeVisualDecorator } from '../themes/ThemeVisualDecorator';
+import { getComputedThemeStyles } from '../../utils/themeStyles';
 import { AnimatedSlideElementsOverlay } from '../slides/AnimatedSlideElementsOverlay';
 import { PresenterControlBar } from './PresenterControlBar';
 
@@ -217,15 +219,17 @@ export const PresentationPlayer: React.FC<PresentationPlayerProps> = ({
     }
   };
 
+  const themeStyles = getComputedThemeStyles(currentSlide.theme);
+
   return (
     <div
       ref={containerRef}
       className="w-full h-screen flex flex-col justify-between overflow-hidden relative select-none bg-slate-950 text-slate-100"
-      style={{
-        backgroundColor: currentSlide.theme?.backgroundColor || '#0F172A',
-        color: currentSlide.theme?.textColor || '#FFFFFF'
-      }}
+      style={themeStyles.containerStyle}
     >
+      {/* Visual Decorator Overlay (Cyber-grid, Stars, Organic leaves, etc.) */}
+      <ThemeVisualDecorator theme={currentSlide.theme} />
+
       {/* Floating live emojis from participants */}
       <LiveReactionsOverlay reactions={reactions} />
 

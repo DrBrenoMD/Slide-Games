@@ -3,6 +3,7 @@ import { Slide, Participant } from '../../types';
 import { CountdownTimer } from '../motion/CountdownTimer';
 import { Check, X, Award, BarChart3, Users } from 'lucide-react';
 import { motion } from 'motion/react';
+import { getComputedThemeStyles } from '../../utils/themeStyles';
 
 interface MultipleChoiceSlideRendererProps {
   slide: Slide;
@@ -24,6 +25,7 @@ export const MultipleChoiceSlideRenderer: React.FC<MultipleChoiceSlideRendererPr
   const options = slide.options || [];
   const totalSubmissions = Object.keys(answersSubmitted).length;
   const isCompetitive = slide.isCompetitive ?? true;
+  const themeStyles = getComputedThemeStyles(slide.theme);
 
   // Calcula estatísticas por opção
   const counts: Record<string, number> = {};
@@ -43,33 +45,50 @@ export const MultipleChoiceSlideRenderer: React.FC<MultipleChoiceSlideRendererPr
   const defaultColors = ['#EF4444', '#3B82F6', '#F59E0B', '#10B981'];
 
   return (
-    <div className="w-full h-full flex flex-col justify-between p-6 sm:p-10 max-w-7xl mx-auto">
+    <div className="w-full h-full flex flex-col justify-between p-6 sm:p-10 max-w-7xl mx-auto relative z-10">
       {/* Top Bar: Title + Timer + Mode Badge */}
       <div className="flex items-start justify-between gap-6 pb-4">
         <div className="flex-1 space-y-2">
           <div className="flex items-center gap-3">
             {isCompetitive ? (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold uppercase tracking-wider">
-                <Award className="w-3.5 h-3.5" />
+              <span
+                className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full border text-xs font-bold uppercase tracking-wider backdrop-blur-md"
+                style={themeStyles.badgeStyle}
+              >
+                <Award className="w-3.5 h-3.5" style={{ color: themeStyles.accentColor }} />
                 Quiz Competitivo {slide.speedBonus && '• Pontos por Velocidade'}
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-bold uppercase tracking-wider">
-                <BarChart3 className="w-3.5 h-3.5" />
+              <span
+                className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full border text-xs font-bold uppercase tracking-wider backdrop-blur-md"
+                style={themeStyles.badgeStyle}
+              >
+                <BarChart3 className="w-3.5 h-3.5" style={{ color: themeStyles.accentColor }} />
                 Enquete Interativa • Sem Ranking
               </span>
             )}
-            <span className="text-xs text-slate-400 flex items-center gap-1 font-semibold">
-              <Users className="w-3.5 h-3.5" />
+            <span
+              className="text-xs flex items-center gap-1 font-semibold px-2.5 py-1 rounded-full bg-slate-900/50 border border-slate-700/50 backdrop-blur-md"
+              style={{ color: slide.theme?.textColor || '#E2E8F0' }}
+            >
+              <Users className="w-3.5 h-3.5" style={{ color: themeStyles.accentColor }} />
               {totalSubmissions} / {participants.length} respostas
             </span>
           </div>
 
-          <h2 className="text-3xl sm:text-5xl font-black text-white tracking-tight font-display leading-tight">
+          <h2
+            className="text-3xl sm:text-5xl font-black tracking-tight leading-tight"
+            style={themeStyles.titleStyle}
+          >
             {slide.title}
           </h2>
           {slide.subtitle && (
-            <p className="text-slate-300 text-sm sm:text-base">{slide.subtitle}</p>
+            <p
+              className="text-base sm:text-xl font-bold"
+              style={themeStyles.subtitleStyle}
+            >
+              {slide.subtitle}
+            </p>
           )}
         </div>
 
@@ -100,7 +119,7 @@ export const MultipleChoiceSlideRenderer: React.FC<MultipleChoiceSlideRendererPr
 
           if (showAnswers && isCompetitive) {
             if (isCorrect) {
-              cardBorder = 'border-emerald-400 ring-4 ring-emerald-500/30 shadow-[0_0_30px_rgba(16,185,129,0.4)]';
+              cardBorder = 'border-emerald-400 ring-4 ring-emerald-500/40 shadow-[0_0_35px_rgba(16,185,129,0.5)]';
             } else {
               opacity = 'opacity-35 grayscale-20';
             }
@@ -112,10 +131,11 @@ export const MultipleChoiceSlideRenderer: React.FC<MultipleChoiceSlideRendererPr
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1, duration: 0.4 }}
-              className={`relative overflow-hidden rounded-3xl p-6 border-2 transition-all duration-300 shadow-xl flex flex-col justify-between min-h-[140px] sm:min-h-[160px] ${cardBorder} ${opacity}`}
+              className={`relative overflow-hidden rounded-3xl p-6 border-2 transition-all duration-300 shadow-xl flex flex-col justify-between min-h-[140px] sm:min-h-[160px] backdrop-blur-xl ${cardBorder} ${opacity}`}
               style={{
-                backgroundColor: `${color}15`,
-                borderColor: showAnswers && isCorrect ? '#34D399' : `${color}40`
+                backgroundColor: `${color}18`,
+                borderColor: showAnswers && isCorrect ? '#34D399' : `${color}55`,
+                borderRadius: slide.theme?.accentBorderRadius || '24px'
               }}
             >
               {/* Animated Progress Bar behind the card */}
@@ -123,7 +143,7 @@ export const MultipleChoiceSlideRenderer: React.FC<MultipleChoiceSlideRendererPr
                 className="absolute inset-0 pointer-events-none transition-all duration-700 ease-out"
                 style={{
                   width: `${percentage}%`,
-                  backgroundColor: `${color}25`
+                  backgroundColor: `${color}30`
                 }}
               />
 
@@ -131,12 +151,18 @@ export const MultipleChoiceSlideRenderer: React.FC<MultipleChoiceSlideRendererPr
               <div className="relative z-10 flex items-start justify-between gap-4">
                 <div className="flex items-start gap-4">
                   <span
-                    className="w-10 h-10 rounded-2xl flex items-center justify-center text-lg font-black shrink-0 text-white shadow-md"
+                    className="w-11 h-11 rounded-2xl flex items-center justify-center text-xl font-black shrink-0 text-white shadow-lg"
                     style={{ backgroundColor: color }}
                   >
                     {icon}
                   </span>
-                  <span className="text-xl sm:text-2xl font-bold text-white leading-snug">
+                  <span
+                    className="text-xl sm:text-2xl font-bold leading-snug"
+                    style={{
+                      fontFamily: themeStyles.fontFamily,
+                      color: slide.theme?.textColor || '#FFFFFF'
+                    }}
+                  >
                     {opt.text}
                   </span>
                 </div>
@@ -158,10 +184,22 @@ export const MultipleChoiceSlideRenderer: React.FC<MultipleChoiceSlideRendererPr
 
               {/* Bottom Row: Percentage & Submissions counter */}
               <div className="relative z-10 flex items-end justify-between pt-4 mt-auto">
-                <span className="text-xs font-semibold text-slate-300">
+                <span
+                  className="text-xs font-semibold"
+                  style={{
+                    color: slide.theme?.textColor || '#E2E8F0',
+                    opacity: 0.8
+                  }}
+                >
                   {count} {count === 1 ? 'voto' : 'votos'}
                 </span>
-                <span className="font-mono text-2xl sm:text-3xl font-black text-white">
+                <span
+                  className="font-mono text-2xl sm:text-3xl font-black"
+                  style={{
+                    color: slide.theme?.textColor || '#FFFFFF',
+                    fontFamily: themeStyles.headingFontFamily
+                  }}
+                >
                   {percentage}%
                 </span>
               </div>
@@ -175,10 +213,14 @@ export const MultipleChoiceSlideRenderer: React.FC<MultipleChoiceSlideRendererPr
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="p-4 rounded-2xl bg-slate-900/90 border border-slate-700 text-sm text-slate-200 mt-2 flex items-center gap-3"
+          className="p-4 rounded-2xl border text-sm mt-2 flex items-center gap-3 backdrop-blur-md shadow-lg"
+          style={{
+            ...themeStyles.cardStyle,
+            color: slide.theme?.textColor || '#E2E8F0'
+          }}
         >
           <span className="text-xl">💡</span>
-          <span>{slide.content}</span>
+          <span className="leading-relaxed font-medium">{slide.content}</span>
         </motion.div>
       )}
     </div>

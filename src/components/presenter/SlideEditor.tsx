@@ -101,6 +101,12 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSavingCloud, setIsSavingCloud] = useState(false);
 
+  // Identificador da apresentação ativa na nuvem para evitar duplicações
+  const [activePresentationId, setActivePresentationId] = useState<string | null>(null);
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState<boolean>(true);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'saving' | 'unsaved' | 'idle'>('saved');
+  const [lastSavedTimestamp, setLastSavedTimestamp] = useState<Date | null>(null);
+
   // Estados locais para salas salvas
   const [savedRooms, setSavedRooms] = useState<SavedRoom[]>([]);
   const [newRoomTitle, setNewRoomTitle] = useState('');
@@ -137,7 +143,50 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Salvar apresentação diretamente na Nuvem (Google Firestore)
+  // Resolve ID existente para evitar duplicar arquivos com o mesmo título ou apresentação aberta
+  const resolveTargetPresentationId = (): string | undefined => {
+    if (activePresentationId) {
+      return activePresentationId;
+    }
+    // Procura na lista de apresentações do usuário se já existe uma com o mesmo título exato
+    const currentTitle = (tempRoomTitle || 'Minha Apresentação').trim().toLowerCase();
+    const existing = savedPresentations.find(
+      (p) => p.title.trim().toLowerCase() === currentTitle
+    );
+    return existing ? existing.id : undefined;
+  };
+
+  // Motor de Salvamento Automático na Nuvem (Debounced)
+  useEffect(() => {
+    if (!user || !autoSaveEnabled || slides.length === 0) return;
+
+    setAutoSaveStatus('unsaved');
+    const timer = setTimeout(async () => {
+      try {
+        setAutoSaveStatus('saving');
+        const targetId = resolveTargetPresentationId();
+        const primaryTheme = currentSlide.theme?.id || 'modern-dark';
+        const saved = await savePresentationToCloud(
+          tempRoomTitle || 'Minha Apresentação',
+          slides,
+          primaryTheme,
+          targetId
+        );
+        if (saved && saved.id) {
+          setActivePresentationId(saved.id);
+        }
+        setAutoSaveStatus('saved');
+        setLastSavedTimestamp(new Date());
+      } catch (err) {
+        console.warn('Falha no salvamento automático na nuvem:', err);
+        setAutoSaveStatus('unsaved');
+      }
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [slides, tempRoomTitle, user, autoSaveEnabled]);
+
+  // Salvar apresentação diretamente na Nuvem (Google Firestore) com proteção contra duplicatas
   const handleSaveToCloud = async () => {
     if (!user) {
       const confirmLogin = window.confirm('Você precisa estar conectado com sua conta Google para salvar na nuvem. Deseja fazer login agora?');
@@ -149,10 +198,24 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
 
     try {
       setIsSavingCloud(true);
-      await savePresentationToCloud(tempRoomTitle || 'Minha Apresentação', slides);
-      showToast('✓ Apresentação salva na sua nuvem Google com sucesso!');
+      setAutoSaveStatus('saving');
+      const targetId = resolveTargetPresentationId();
+      const primaryTheme = currentSlide.theme?.id || 'modern-dark';
+      const saved = await savePresentationToCloud(
+        tempRoomTitle || 'Minha Apresentação',
+        slides,
+        primaryTheme,
+        targetId
+      );
+      if (saved && saved.id) {
+        setActivePresentationId(saved.id);
+      }
+      setAutoSaveStatus('saved');
+      setLastSavedTimestamp(new Date());
+      showToast('✓ Apresentação salva na sua nuvem Google com sucesso (sem duplicatas)!');
     } catch (err: any) {
       showToast('⚠️ Erro ao salvar na nuvem: ' + (err.message || 'Falha na conexão'));
+      setAutoSaveStatus('unsaved');
     } finally {
       setIsSavingCloud(false);
     }
@@ -515,6 +578,51 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
 
         {/* Ações de Salvar e Iniciar */}
         <div className="flex items-center gap-2">
+          {/* Indicador e Controle de Salvamento Automático na Nuvem */}
+          {user ? (
+            <div
+              className={`hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold backdrop-blur-md transition-all ${
+                autoSaveStatus === 'saving'
+                  ? 'bg-amber-500/10 border-amber-500/30 text-amber-300 animate-pulse'
+                  : autoSaveStatus === 'saved'
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                  : 'bg-slate-800/80 border-slate-700 text-slate-400'
+              }`}
+              title={`Salvamento automático na nuvem ${autoSaveEnabled ? 'ativado' : 'desativado'}. Clique para alternar.`}
+            >
+              <button
+                type="button"
+                onClick={() => setAutoSaveEnabled((prev) => !prev)}
+                className="flex items-center gap-1.5 cursor-pointer"
+              >
+                <Cloud className={`w-3.5 h-3.5 ${autoSaveStatus === 'saving' ? 'text-amber-400 animate-bounce' : 'text-emerald-400'}`} />
+                <span>
+                  {autoSaveStatus === 'saving'
+                    ? 'Salvando na Nuvem...'
+                    : autoSaveEnabled
+                    ? 'Auto-Save Nuvem: Ativo'
+                    : 'Auto-Save: Pausado'}
+                </span>
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await loginWithGoogle();
+                } catch (e) {
+                  // Handled
+                }
+              }}
+              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 text-sky-300 text-xs font-bold cursor-pointer transition-all"
+              title="Faça login com Google para ativar o salvamento automático na nuvem"
+            >
+              <Cloud className="w-3.5 h-3.5" />
+              <span>Ativar Auto-Save Nuvem</span>
+            </button>
+          )}
+
           {/* Botão Salvar na Nuvem */}
           <button
             type="button"
@@ -1576,6 +1684,8 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
                         <button
                           type="button"
                           onClick={() => {
+                            setActivePresentationId(pres.id);
+                            setTempRoomTitle(pres.title);
                             if (onLoadPresentation) {
                               onLoadPresentation(pres);
                             } else {
