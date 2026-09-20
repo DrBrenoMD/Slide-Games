@@ -36,12 +36,14 @@ export const ImpostorSlideRenderer: React.FC<ImpostorSlideRendererProps> = ({
   onAdvanceToNextRound,
   onStartNewMatch,
   onStartImpostorGame,
+  onStartVoting,
+  onRevealImpostor,
   isPresenter = false
 }) => {
   const config = slide.impostorConfig || {
     mode: 'classic',
     category: slide.categoryName || 'Personagens Bíblicos',
-    secretWord: 'Moisés',
+    secretWord: '',
     numAgents: 4,
     numImpostors: 1,
     impostorRatio: 0.25,
@@ -128,11 +130,13 @@ export const ImpostorSlideRenderer: React.FC<ImpostorSlideRendererProps> = ({
                 <span>{participants.length} participante{participants.length === 1 ? '' : 's'} na sala</span>
               </div>
               <p className="text-slate-400 text-[11px]">
-                Aguardando o apresentador definir a palavra secreta e iniciar a partida...
+                {config.secretWord
+                  ? `Palavra Definida: "${config.secretWord}". Clique em Iniciar!`
+                  : 'Nenhuma palavra selecionada. O sistema sorteará a palavra automaticamente ao iniciar!'}
               </p>
             </div>
 
-            {isPresenter && onStartImpostorGame && (
+            {onStartImpostorGame && (
               <button
                 type="button"
                 onClick={onStartImpostorGame}
@@ -421,6 +425,31 @@ export const ImpostorSlideRenderer: React.FC<ImpostorSlideRendererProps> = ({
               })}
             </div>
           </div>
+        )}
+      </div>
+
+      {/* Controles de Ação Direta no Telão (Modo Autônomo / Telão Interativo) */}
+      <div className="py-1.5 flex justify-center gap-3 shrink-0">
+        {!config.votingActive && onStartVoting && (
+          <button
+            type="button"
+            onClick={onStartVoting}
+            className="px-6 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-rose-600 hover:from-amber-400 hover:to-rose-500 text-white font-black text-xs sm:text-sm shadow-xl flex items-center gap-2 cursor-pointer transition-transform active:scale-95"
+          >
+            <Vote className="w-4 h-4" />
+            <span>Iniciar Votação de Eliminação</span>
+          </button>
+        )}
+
+        {config.votingActive && onRevealImpostor && (
+          <button
+            type="button"
+            onClick={onRevealImpostor}
+            className="px-6 py-2.5 rounded-2xl bg-gradient-to-r from-rose-600 to-purple-600 hover:from-rose-500 hover:to-purple-500 text-white font-black text-xs sm:text-sm shadow-xl flex items-center gap-2 cursor-pointer transition-transform active:scale-95 animate-pulse"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>Encerrar Votação e Revelar Eliminado</span>
+          </button>
         )}
       </div>
 

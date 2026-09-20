@@ -21,7 +21,7 @@ export const WordListModal: React.FC<WordListModalProps> = ({
   onSave
 }) => {
   const [selectedCategoryName, setSelectedCategoryName] = useState(currentCategory || 'Personagens Bíblicos');
-  const [secretWord, setSecretWord] = useState(currentSecretWord || 'Moisés');
+  const [secretWord, setSecretWord] = useState(currentSecretWord || '');
   const [words, setWords] = useState<string[]>(() => {
     return getWordsForCategory(currentCategory || 'Personagens Bíblicos', customWordList);
   });

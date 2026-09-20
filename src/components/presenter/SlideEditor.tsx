@@ -1181,6 +1181,30 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
                   </label>
                 )}
 
+                {/* Jogar sem Apresentador (Modo Autônomo) */}
+                <label className="flex items-center justify-between p-2.5 rounded-xl bg-indigo-950/40 border border-indigo-500/40 cursor-pointer text-xs">
+                  <div className="space-y-0.5">
+                    <span className="font-extrabold text-indigo-300 block">
+                      Permitir Jogar Sem Apresentador (Modo Autônomo)
+                    </span>
+                    <span className="text-[10px] text-slate-400 block">
+                      Exibe botões no telão e nos celulares para iniciar partida, sortear palavra/infiltrado e gerenciar votação autonomamente.
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={currentSlide.impostorConfig?.standaloneMode ?? true}
+                    onChange={(e) => {
+                      updateCurrentSlide({
+                        impostorConfig: currentSlide.impostorConfig
+                          ? { ...currentSlide.impostorConfig, standaloneMode: e.target.checked }
+                          : undefined
+                      });
+                    }}
+                    className="w-4 h-4 rounded accent-indigo-500 cursor-pointer shrink-0 ml-2"
+                  />
+                </label>
+
                 {/* Categoria e Palavra Secreta */}
                 <div>
                   <label className="text-xs font-semibold text-slate-400 block mb-1">Categoria</label>
@@ -1189,14 +1213,13 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
                     onChange={(e) => {
                       const catName = e.target.value;
                       const words = getWordsForCategory(catName);
-                      const secretWord = getRandomWordForCategory(catName);
                       updateCurrentSlide({
                         impostorConfig: currentSlide.impostorConfig
                           ? {
                               ...currentSlide.impostorConfig,
                               category: catName,
                               customWordList: words,
-                              secretWord
+                              secretWord: ''
                             }
                           : undefined
                       });

@@ -44,6 +44,11 @@ interface ParticipantViewProps {
   answersSubmitted?: Record<string, any>;
   imagePins?: ImagePinSubmission[];
   termSubmissions?: TermSubmission[];
+  onStartImpostorGame?: () => void;
+  onStartVoting?: () => void;
+  onRevealImpostor?: () => void;
+  onAdvanceToNextRound?: (changeWord?: boolean) => void;
+  onStartNewMatch?: () => void;
 }
 
 export const ParticipantView: React.FC<ParticipantViewProps> = ({
@@ -64,7 +69,12 @@ export const ParticipantView: React.FC<ParticipantViewProps> = ({
   showAnswers = false,
   answersSubmitted = {},
   imagePins = [],
-  termSubmissions = []
+  termSubmissions = [],
+  onStartImpostorGame,
+  onStartVoting,
+  onRevealImpostor,
+  onAdvanceToNextRound,
+  onStartNewMatch
 }) => {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [textInput, setTextInput] = useState('');
@@ -548,6 +558,15 @@ export const ParticipantView: React.FC<ParticipantViewProps> = ({
                       <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
                       <span>Conectado como {participant.name}</span>
                     </div>
+
+                    {onStartImpostorGame && (
+                      <button
+                        onClick={onStartImpostorGame}
+                        className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-rose-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white font-black text-sm shadow-xl cursor-pointer flex items-center justify-center gap-2 transition-transform active:scale-95"
+                      >
+                        <span>▶ Iniciar Partida Agora</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -612,6 +631,18 @@ export const ParticipantView: React.FC<ParticipantViewProps> = ({
                   isEliminated={isEliminated}
                 />
 
+                {/* Se a partida está em andamento e votação NÃO está ativa ainda */}
+                {!impostorConfig?.votingActive && impostorConfig?.revealState !== 'round_elimination' && onStartVoting && (
+                  <div className="pt-2">
+                    <button
+                      onClick={onStartVoting}
+                      className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-rose-600 hover:from-amber-400 hover:to-rose-500 text-white font-black text-sm shadow-xl flex items-center justify-center gap-2 cursor-pointer transition-transform active:scale-95"
+                    >
+                      <span>🗳️ Iniciar Votação da Rodada</span>
+                    </button>
+                  </div>
+                )}
+
                 {/* Se a revelação de eliminação da rodada estiver ativa */}
                 {impostorConfig?.revealState === 'round_elimination' && (
                   <div className="p-4 sm:p-5 rounded-3xl bg-slate-900 border border-slate-800 text-center space-y-3 shadow-2xl">
@@ -662,9 +693,25 @@ export const ParticipantView: React.FC<ParticipantViewProps> = ({
                       </div>
                     )}
 
-                    <p className="text-xs text-slate-400">
-                      Acompanhe o telão principal para ver o placar geral e o início da próxima rodada.
-                    </p>
+                    {/* Botões de Ação para Próxima Rodada / Nova Partida */}
+                    <div className="flex gap-2 pt-2">
+                      {onAdvanceToNextRound && (
+                        <button
+                          onClick={() => onAdvanceToNextRound(true)}
+                          className="flex-1 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs sm:text-sm shadow-lg flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                        >
+                          <span>▶ Próxima Rodada</span>
+                        </button>
+                      )}
+                      {(onStartNewMatch || onStartImpostorGame) && (
+                        <button
+                          onClick={onStartNewMatch || onStartImpostorGame}
+                          className="flex-1 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs sm:text-sm shadow-lg flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                        >
+                          <span>🔄 Nova Partida</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -713,6 +760,17 @@ export const ParticipantView: React.FC<ParticipantViewProps> = ({
                           </div>
                         )}
                       </>
+                    )}
+
+                    {onRevealImpostor && (
+                      <div className="pt-2 border-t border-slate-800">
+                        <button
+                          onClick={onRevealImpostor}
+                          className="w-full py-3 rounded-2xl bg-gradient-to-r from-rose-600 to-purple-600 hover:from-rose-500 hover:to-purple-500 text-white font-black text-xs sm:text-sm shadow-xl flex items-center justify-center gap-2 cursor-pointer transition-transform active:scale-95 animate-pulse"
+                        >
+                          <span>📊 Encerrar Votação e Revelar Eliminado</span>
+                        </button>
+                      </div>
                     )}
                   </div>
                 )}

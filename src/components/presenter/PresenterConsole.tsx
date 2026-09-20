@@ -221,7 +221,7 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
   const impostorConfig = currentSlide.impostorConfig || {
     mode: 'classic',
     category: currentSlide.categoryName || 'Personagens Bíblicos',
-    secretWord: 'Moisés',
+    secretWord: '',
     numAgents: 4,
     numImpostors: 1,
     selectionMethod: 'random',

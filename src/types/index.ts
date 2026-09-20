@@ -233,6 +233,7 @@ export interface SlideElement {
 
 export interface ImpostorConfig {
   gameStarted?: boolean; // Se o jogo foi iniciado pelo apresentador (só então participantes vêem as palavras/papéis)
+  standaloneMode?: boolean; // Permitir jogar autonomamente direto no telão/participantes sem tela de apresentador
   mode: 'classic' | 'investigator';
   category: string;
   secretWord: string;

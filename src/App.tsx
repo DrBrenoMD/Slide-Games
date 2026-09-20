@@ -1961,6 +1961,11 @@ export default function App() {
               }}
               allParticipants={Object.values(participants)}
               onLeaveRoom={handleLeaveRoom}
+              onStartImpostorGame={handleStartImpostorGame}
+              onStartVoting={handleStartImpostorVoting}
+              onRevealImpostor={handleRevealImpostor}
+              onAdvanceToNextRound={handleAdvanceToNextRound}
+              onStartNewMatch={handleStartNewMatch}
             />
           )
         )}
