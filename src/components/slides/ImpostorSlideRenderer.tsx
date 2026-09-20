@@ -26,6 +26,7 @@ interface ImpostorSlideRendererProps {
   onStartNewMatch?: () => void;
   onStartImpostorGame?: () => void;
   onAddSimulatedParticipants?: () => void;
+  onToggleRevealWordToInvestigators?: () => void;
   isPresenter?: boolean;
 }
 
@@ -38,6 +39,7 @@ export const ImpostorSlideRenderer: React.FC<ImpostorSlideRendererProps> = ({
   onStartImpostorGame,
   onStartVoting,
   onRevealImpostor,
+  onToggleRevealWordToInvestigators,
   isPresenter = false
 }) => {
   const config = slide.impostorConfig || {
@@ -184,7 +186,11 @@ export const ImpostorSlideRenderer: React.FC<ImpostorSlideRendererProps> = ({
           isGameOver={config.winner !== undefined}
           winner={config.winner}
           onNextRound={onAdvanceToNextRound ? () => onAdvanceToNextRound(true) : undefined}
+          onAdvanceToNextRound={onAdvanceToNextRound}
           onNewMatch={onStartNewMatch || onResetGame}
+          isInvestigatorMode={isInvestigatorMode}
+          revealWordToInvestigators={config.revealWordToInvestigators}
+          onToggleRevealWordToInvestigators={onToggleRevealWordToInvestigators}
           isPresenter={isPresenter}
         />
       </div>

@@ -1547,34 +1547,35 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
                     </span>
                   </div>
 
-                  {/* Opção do Apresentador: Mudar a palavra secreta na próxima rodada */}
-                  {!impostorConfig.winner && (impostorConfig.currentRound || 1) < (impostorConfig.roundsTotal || 3) && (
-                    <label className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer text-xs font-bold text-slate-200">
-                      <input
-                        type="checkbox"
-                        checked={changeWordOnNextRound}
-                        onChange={(e) => setChangeWordOnNextRound(e.target.checked)}
-                        className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                      />
-                      <span>Sortear NOVA palavra secreta para a próxima rodada</span>
-                    </label>
-                  )}
+                  <div className="flex flex-wrap items-center gap-3 pt-1">
+                    {!impostorConfig.winner ? (
+                      <>
+                        <button
+                          onClick={() => {
+                            if (onAdvanceToNextRound) {
+                              onAdvanceToNextRound(false);
+                            }
+                          }}
+                          className="px-5 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs shadow-lg cursor-pointer flex items-center gap-2 transition-all active:scale-95"
+                        >
+                          <Play className="w-4 h-4 text-indigo-200" />
+                          <span>Iniciar nova rodada com a mesma palavra</span>
+                        </button>
 
-                  <div className="flex flex-wrap items-center gap-3">
-                    {!impostorConfig.winner && (impostorConfig.currentRound || 1) < (impostorConfig.roundsTotal || 3) ? (
-                      <button
-                        onClick={() => {
-                          if (onAdvanceToNextRound) {
-                            onAdvanceToNextRound(changeWordOnNextRound);
-                          }
-                        }}
-                        className="px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs shadow-lg cursor-pointer flex items-center gap-2 transition-all active:scale-95"
-                      >
-                        <Sparkles className="w-4 h-4" />
-                        <span>Seguir para a Próxima Rodada (Rodada {(impostorConfig.currentRound || 1) + 1})</span>
-                      </button>
+                        <button
+                          onClick={() => {
+                            if (onAdvanceToNextRound) {
+                              onAdvanceToNextRound(true);
+                            }
+                          }}
+                          className="px-5 py-3 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs shadow-lg cursor-pointer flex items-center gap-2 transition-all active:scale-95"
+                        >
+                          <Shuffle className="w-4 h-4 text-purple-200" />
+                          <span>Iniciar nova rodada com outra palavra</span>
+                        </button>
+                      </>
                     ) : (
-                      <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-500/40 text-xs font-bold text-amber-300">
+                      <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-500/40 text-xs font-bold text-amber-300 w-full">
                         {impostorConfig.winner === 'impostors' ? '🚨 Vitória dos Infiltrados! As rodadas acabaram ou os agentes foram eliminados.' : '🛡️ Vitória dos Agentes! Todos os infiltrados foram eliminados.'}
                       </div>
                     )}
@@ -1587,11 +1588,29 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
                           onResetImpostorGame();
                         }
                       }}
-                      className="px-5 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-lg cursor-pointer flex items-center gap-2 transition-all active:scale-95"
+                      className="px-5 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs shadow-lg cursor-pointer flex items-center gap-2 transition-all active:scale-95"
                     >
-                      <RefreshCw className="w-4 h-4" />
-                      <span>Iniciar Nova Partida (Resetar Todos Eliminados)</span>
+                      <RefreshCw className="w-4 h-4 text-slate-400" />
+                      <span>Iniciar nova partida</span>
                     </button>
+
+                    {impostorConfig.mode === 'investigator' && (
+                      <button
+                        onClick={handleToggleRevealWordToInvestigators}
+                        className={`px-5 py-3 rounded-2xl border font-bold text-xs shadow-lg cursor-pointer flex items-center gap-2 transition-all active:scale-95 ${
+                          impostorConfig.revealWordToInvestigators
+                            ? 'bg-emerald-950/80 border-emerald-500/80 text-emerald-300 hover:bg-emerald-900/80'
+                            : 'bg-amber-950/80 border-amber-500/80 text-amber-300 hover:bg-amber-900/80'
+                        }`}
+                      >
+                        <Eye className="w-4 h-4" />
+                        <span>
+                          {impostorConfig.revealWordToInvestigators
+                            ? 'Ocultar Palavra dos Investigadores'
+                            : 'Revelar Palavra aos Investigadores'}
+                        </span>
+                      </button>
+                    )}
                   </div>
                 </div>
               )}

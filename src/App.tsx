@@ -1133,6 +1133,14 @@ export default function App() {
     });
   };
 
+  const handleToggleRevealWordToInvestigators = () => {
+    const currentSlide = slides[currentSlideIndex];
+    if (!currentSlide || !currentSlide.impostorConfig) return;
+    handleUpdateImpostorConfig({
+      revealWordToInvestigators: !currentSlide.impostorConfig.revealWordToInvestigators
+    });
+  };
+
   // Iniciar jogo do Infiltrado pelo apresentador ou participante
   const handleStartImpostorGame = () => {
     const currentSlide = slides[currentSlideIndex];
@@ -1857,6 +1865,7 @@ export default function App() {
             onResetImpostorGame={handleResetImpostorGame}
             onAdvanceToNextRound={handleAdvanceToNextRound}
             onStartNewMatch={handleStartNewMatch}
+            onToggleRevealWordToInvestigators={handleToggleRevealWordToInvestigators}
           />
         )}
 
@@ -2061,6 +2070,7 @@ export default function App() {
               onRevealImpostor={handleRevealImpostor}
               onAdvanceToNextRound={handleAdvanceToNextRound}
               onStartNewMatch={handleStartNewMatch}
+              onToggleRevealWordToInvestigators={handleToggleRevealWordToInvestigators}
             />
           )
         )}

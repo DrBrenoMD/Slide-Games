@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { AlertTriangle, Eye, ShieldAlert, Sparkles, Skull, CheckCircle, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Eye, ShieldAlert, Sparkles, Skull, CheckCircle, RefreshCw, Play, Shuffle } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface ImpostorParticipantCardProps {
@@ -269,7 +269,11 @@ interface ImpostorRoundEliminationRevealProps {
   isGameOver: boolean;
   winner?: 'impostors' | 'civilians' | 'agents';
   onNextRound?: () => void;
+  onAdvanceToNextRound?: (changeWord: boolean) => void;
   onNewMatch?: () => void;
+  isInvestigatorMode?: boolean;
+  revealWordToInvestigators?: boolean;
+  onToggleRevealWordToInvestigators?: () => void;
   isPresenter?: boolean;
 }
 
@@ -285,7 +289,11 @@ export const ImpostorRoundEliminationReveal: React.FC<ImpostorRoundEliminationRe
   isGameOver,
   winner,
   onNextRound,
+  onAdvanceToNextRound,
   onNewMatch,
+  isInvestigatorMode = false,
+  revealWordToInvestigators = false,
+  onToggleRevealWordToInvestigators,
   isPresenter = false
 }) => {
   const [phase, setPhase] = useState<'voting_summary' | 'elimination' | 'role_reveal'>('voting_summary');
@@ -418,26 +426,58 @@ export const ImpostorRoundEliminationReveal: React.FC<ImpostorRoundEliminationRe
               </div>
             </div>
 
-            {/* Ações do Apresentador ou Aviso para Jogadores */}
+            {/* Ações do Apresentador ou Ações no Telão */}
             {isPresenter ? (
-              <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-                {!isGameOver && onNextRound && (
-                  <button
-                    onClick={onNextRound}
-                    className="px-6 py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs sm:text-sm shadow-xl cursor-pointer flex items-center gap-2 transition-all active:scale-95"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    <span>Seguir para a Rodada {roundNumber + 1} de {roundsTotal}</span>
-                  </button>
+              <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
+                {!isGameOver && (
+                  <>
+                    {(onAdvanceToNextRound || onNextRound) && (
+                      <button
+                        onClick={() => (onAdvanceToNextRound ? onAdvanceToNextRound(false) : onNextRound?.())}
+                        className="px-4 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs sm:text-sm shadow-xl cursor-pointer flex items-center gap-2 transition-all active:scale-95"
+                      >
+                        <Play className="w-4 h-4 text-indigo-200" />
+                        <span>Iniciar nova rodada com a mesma palavra</span>
+                      </button>
+                    )}
+
+                    {onAdvanceToNextRound && (
+                      <button
+                        onClick={() => onAdvanceToNextRound(true)}
+                        className="px-4 py-3 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs sm:text-sm shadow-xl cursor-pointer flex items-center gap-2 transition-all active:scale-95"
+                      >
+                        <Shuffle className="w-4 h-4 text-purple-200" />
+                        <span>Iniciar nova rodada com outra palavra</span>
+                      </button>
+                    )}
+                  </>
                 )}
 
                 {onNewMatch && (
                   <button
                     onClick={onNewMatch}
-                    className="px-5 py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs sm:text-sm shadow-lg cursor-pointer flex items-center gap-2"
+                    className="px-4 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs sm:text-sm shadow-lg cursor-pointer flex items-center gap-2 transition-all active:scale-95"
                   >
-                    <RefreshCw className="w-4 h-4" />
-                    <span>Iniciar Nova Partida</span>
+                    <RefreshCw className="w-4 h-4 text-slate-400" />
+                    <span>Iniciar nova partida</span>
+                  </button>
+                )}
+
+                {isInvestigatorMode && onToggleRevealWordToInvestigators && (
+                  <button
+                    onClick={onToggleRevealWordToInvestigators}
+                    className={`px-4 py-3 rounded-2xl border font-bold text-xs sm:text-sm shadow-lg cursor-pointer flex items-center gap-2 transition-all active:scale-95 ${
+                      revealWordToInvestigators
+                        ? 'bg-emerald-950/90 border-emerald-500/80 text-emerald-300 hover:bg-emerald-900/90'
+                        : 'bg-amber-950/90 border-amber-500/80 text-amber-300 hover:bg-amber-900/90'
+                    }`}
+                  >
+                    <Eye className="w-4 h-4" />
+                    <span>
+                      {revealWordToInvestigators
+                        ? 'Ocultar Palavra dos Investigadores'
+                        : 'Revelar Palavra aos Investigadores'}
+                    </span>
                   </button>
                 )}
               </div>

@@ -49,6 +49,7 @@ interface ParticipantViewProps {
   onRevealImpostor?: () => void;
   onAdvanceToNextRound?: (changeWord?: boolean) => void;
   onStartNewMatch?: () => void;
+  onToggleRevealWordToInvestigators?: () => void;
 }
 
 export const ParticipantView: React.FC<ParticipantViewProps> = ({
@@ -74,7 +75,8 @@ export const ParticipantView: React.FC<ParticipantViewProps> = ({
   onStartVoting,
   onRevealImpostor,
   onAdvanceToNextRound,
-  onStartNewMatch
+  onStartNewMatch,
+  onToggleRevealWordToInvestigators
 }) => {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [textInput, setTextInput] = useState('');
@@ -694,21 +696,47 @@ export const ParticipantView: React.FC<ParticipantViewProps> = ({
                     )}
 
                     {/* Botões de Ação para Próxima Rodada / Nova Partida */}
-                    <div className="flex gap-2 pt-2">
-                      {onAdvanceToNextRound && (
-                        <button
-                          onClick={() => onAdvanceToNextRound(true)}
-                          className="flex-1 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs sm:text-sm shadow-lg flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
-                        >
-                          <span>▶ Próxima Rodada</span>
-                        </button>
+                    <div className="flex flex-col gap-2 pt-2">
+                      {!impostorConfig.winner && onAdvanceToNextRound && (
+                        <>
+                          <button
+                            onClick={() => onAdvanceToNextRound(false)}
+                            className="w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs sm:text-sm shadow-lg flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                          >
+                            <span>▶ Iniciar nova rodada com a mesma palavra</span>
+                          </button>
+                          <button
+                            onClick={() => onAdvanceToNextRound(true)}
+                            className="w-full py-3 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white font-black text-xs sm:text-sm shadow-lg flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                          >
+                            <span>🔀 Iniciar nova rodada com outra palavra</span>
+                          </button>
+                        </>
                       )}
+
                       {(onStartNewMatch || onStartImpostorGame) && (
                         <button
                           onClick={onStartNewMatch || onStartImpostorGame}
-                          className="flex-1 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs sm:text-sm shadow-lg flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                          className="w-full py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs sm:text-sm shadow-lg flex items-center justify-center gap-2 cursor-pointer active:scale-95"
                         >
-                          <span>🔄 Nova Partida</span>
+                          <span>🔄 Iniciar nova partida</span>
+                        </button>
+                      )}
+
+                      {impostorConfig.mode === 'investigator' && onToggleRevealWordToInvestigators && (
+                        <button
+                          onClick={onToggleRevealWordToInvestigators}
+                          className={`w-full py-3 rounded-2xl border font-bold text-xs sm:text-sm shadow-lg flex items-center justify-center gap-2 cursor-pointer active:scale-95 ${
+                            revealWordToInvestigators
+                              ? 'bg-emerald-950/80 border-emerald-500/80 text-emerald-300 hover:bg-emerald-900/80'
+                              : 'bg-amber-950/80 border-amber-500/80 text-amber-300 hover:bg-amber-900/80'
+                          }`}
+                        >
+                          <span>
+                            {revealWordToInvestigators
+                              ? '👁️‍🗨️ Ocultar palavra dos investigadores'
+                              : '👁️ Revelar palavra aos investigadores'}
+                          </span>
                         </button>
                       )}
                     </div>
