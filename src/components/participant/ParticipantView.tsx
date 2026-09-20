@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Participant, Slide, Team } from '../../types';
+import { Participant, Slide, Team, ImagePinSubmission, TermSubmission } from '../../types';
 import { ImpostorParticipantCard } from '../motion/ImpostorAlert';
 import { ContentSlideRenderer } from '../slides/ContentSlideRenderer';
+import { PresentationPlayer } from '../presenter/PresentationPlayer';
 import { PodiumPod } from '../motion/PodiumPod';
 import { getComputedThemeStyles } from '../../utils/themeStyles';
 import {
@@ -37,6 +38,12 @@ interface ParticipantViewProps {
   onImpostorVote: (suspectId: string) => void;
   allParticipants: Participant[];
   onLeaveRoom?: () => void;
+  slides?: Slide[];
+  roomCode?: string;
+  showAnswers?: boolean;
+  answersSubmitted?: Record<string, any>;
+  imagePins?: ImagePinSubmission[];
+  termSubmissions?: TermSubmission[];
 }
 
 export const ParticipantView: React.FC<ParticipantViewProps> = ({
@@ -51,7 +58,13 @@ export const ParticipantView: React.FC<ParticipantViewProps> = ({
   onSendReaction,
   onImpostorVote,
   allParticipants,
-  onLeaveRoom
+  onLeaveRoom,
+  slides,
+  roomCode = '',
+  showAnswers = false,
+  answersSubmitted = {},
+  imagePins = [],
+  termSubmissions = []
 }) => {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [textInput, setTextInput] = useState('');
@@ -234,99 +247,40 @@ export const ParticipantView: React.FC<ParticipantViewProps> = ({
 
       {/* Center Dynamic Body */}
       <main className="flex-1 p-3 sm:p-5 flex flex-col justify-start max-w-xl mx-auto w-full space-y-4">
-        {/* SLIDE DE CONTEÚDO (APRESENTAÇÃO COMPLETA RENDERIZADA NA TELA DO PARTICIPANTE EM 16:9) */}
-        {isContentSlide && (
-          <div className="w-full aspect-video max-w-xl mx-auto bg-slate-900/90 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl flex items-center justify-center relative">
-            <ContentSlideRenderer slide={currentSlide} />
-          </div>
-        )}
-
-        {/* SLIDE DE LEADERBOARD (CLASSIFICAÇÃO COMPLETA) */}
-        {isLeaderboardSlide && (
-          <div className="w-full bg-slate-900/90 border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-2xl text-center">
-            <h2 className="text-2xl font-black text-white mb-2">{currentSlide.title || '🏆 Classificação'}</h2>
-            {currentSlide.subtitle && <p className="text-xs text-slate-400 mb-4">{currentSlide.subtitle}</p>}
-            <PodiumPod
+        {/* TELA DA APRESENTAÇÃO SINCRONIZADA EXATAMENTE IGUAL AO TELÃO (COM BOTÕES E INTERAÇÃO BLOQUEADOS PARA O PARTICIPANTE) */}
+        {currentSlide.type !== 'content_qrcode_lobby' && (
+          <div className="w-full aspect-video max-w-xl mx-auto bg-slate-950 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl relative pointer-events-none select-none cursor-default">
+            <PresentationPlayer
+              slides={slides || [currentSlide]}
+              currentSlideIndex={currentSlideIndex}
+              roomCode={roomCode}
+              appUrl=""
               participants={allParticipants}
               teams={teams}
               teamMode={participant.teamId ? 'teams' : 'individual'}
-              isFinal={currentSlideIndex === totalSlides - 1}
+              showAnswers={showAnswers}
+              timerActive={false}
+              timerRemaining={null}
+              answersSubmitted={answersSubmitted}
+              imagePins={imagePins}
+              termSubmissions={termSubmissions}
+              reactions={[]}
+              isProjectorOnly={true}
+              isEmbedded={true}
+              onPrevSlide={() => {}}
+              onNextSlide={() => {}}
+              onGoToSlide={() => {}}
+              onToggleShowAnswers={() => {}}
+              onToggleTimer={() => {}}
+              onResetTimer={() => {}}
+              onOpenTeamManager={() => {}}
+              onAddSimulatedParticipants={() => {}}
+              onSwitchToEditor={() => {}}
+              onUpdateImpostorConfig={() => {}}
+              onStartImpostorVoting={() => {}}
+              onRevealImpostor={() => {}}
+              onResetImpostorGame={() => {}}
             />
-          </div>
-        )}
-
-        {/* MODO TELÃO COMPLETO QUANDO ATIVADO PELO PARTICIPANTE (EM CONTAINER RESPONSIVO 16:9) */}
-        {showFullTelao && !isContentSlide && !isLeaderboardSlide && (
-          <div className="w-full aspect-video max-w-xl mx-auto bg-slate-900 border border-indigo-500/40 rounded-3xl p-3 sm:p-4 shadow-2xl overflow-y-auto space-y-2 animate-in fade-in duration-200">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-              <div className="flex items-center gap-1.5">
-                <Tv className="w-3.5 h-3.5 text-indigo-400" />
-                <span className="text-[11px] font-extrabold uppercase tracking-wider text-indigo-300">
-                  Tela da Apresentação
-                </span>
-              </div>
-              <button
-                onClick={() => setShowFullTelao(false)}
-                className="text-[10px] font-bold text-slate-400 hover:text-white px-2 py-0.5 rounded-lg bg-slate-800 border border-slate-700 cursor-pointer"
-              >
-                Voltar aos Controles
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              <h2 className="text-base sm:text-lg font-black text-white leading-snug">
-                {currentSlide.title}
-              </h2>
-              {currentSlide.subtitle && (
-                <p className="text-xs text-slate-300 font-medium">{currentSlide.subtitle}</p>
-              )}
-              {currentSlide.imageUrl && (
-                <div className="rounded-xl overflow-hidden border border-slate-800 max-h-28">
-                  <img src={currentSlide.imageUrl} alt={currentSlide.title} className="w-full h-auto object-cover max-h-28" />
-                </div>
-              )}
-              {currentSlide.options && (
-                <div className="grid grid-cols-2 gap-1.5 pt-1">
-                  {currentSlide.options.map((opt, idx) => (
-                    <div
-                      key={opt.id}
-                      className="p-2 rounded-xl flex items-center gap-1.5 text-white font-bold text-[11px] shadow-sm"
-                      style={{ backgroundColor: opt.color || defaultColors[idx % defaultColors.length] }}
-                    >
-                      <span className="text-xs">{opt.icon || geometricIcons[idx % geometricIcons.length]}</span>
-                      <span className="truncate">{opt.text}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* TELA DE APRESENTAÇÃO COMPACTA SINCRONIZADA NO TOPO (EXIBE SLIDE, IMAGEM E PERGUNTA) EM 16:9 */}
-        {!showFullTelao && !isContentSlide && !isLeaderboardSlide && currentSlide.type !== 'content_qrcode_lobby' && (
-          <div className="w-full aspect-video max-w-xl mx-auto bg-slate-900/90 border border-slate-800 rounded-3xl p-3 sm:p-4 shadow-xl flex flex-col justify-between overflow-hidden relative">
-            <div className="flex items-center justify-between text-[10px] font-extrabold uppercase tracking-wider text-slate-400 shrink-0">
-              <span className="flex items-center gap-1 text-indigo-400">
-                <Tv className="w-3 h-3" />
-                <span>Telão Sincronizado</span>
-              </span>
-              <span className="font-mono text-slate-400">
-                {currentSlide.type.startsWith('game_impostor') ? 'Jogo O Infiltrado' : 'Quiz ao Vivo'}
-              </span>
-            </div>
-
-            <div className="flex-1 flex flex-col justify-center my-1 overflow-hidden">
-              <h3 className="text-sm sm:text-base font-black text-white leading-snug line-clamp-2">
-                {currentSlide.title}
-              </h3>
-
-              {currentSlide.imageUrl && (
-                <div className="rounded-xl overflow-hidden border border-slate-800 mt-2 max-h-24 sm:max-h-28 shrink-0">
-                  <img src={currentSlide.imageUrl} alt={currentSlide.title} className="w-full h-full object-cover max-h-24 sm:max-h-28" />
-                </div>
-              )}
-            </div>
           </div>
         )}
 

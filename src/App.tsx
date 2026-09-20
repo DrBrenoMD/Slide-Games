@@ -1720,7 +1720,7 @@ export default function App() {
       </header>
 
       {/* Main Viewport: Renderiza a tela selecionada */}
-      <main className="flex-1 flex flex-col w-full h-full overflow-hidden">
+      <main className="flex-1 flex flex-col w-full min-h-0 overflow-y-auto overflow-x-hidden">
         {/* 1. TELA DE APRESENTAÇÃO (TELÃO DO PROJETOR) */}
         {appView === 'presentation' && (
           <PresentationPlayer
@@ -1923,6 +1923,12 @@ export default function App() {
               currentSlideIndex={currentSlideIndex}
               totalSlides={slides.length}
               teams={teams}
+              slides={slides}
+              roomCode={roomCode}
+              showAnswers={showAnswers}
+              answersSubmitted={answersSubmitted}
+              imagePins={imagePins}
+              termSubmissions={termSubmissions}
               onSubmitAnswer={(ans) => {
                 realtimeService.broadcast('SUBMIT_ANSWER', roomCode, currentLocalParticipant.id, {
                   participantId: currentLocalParticipant.id,
