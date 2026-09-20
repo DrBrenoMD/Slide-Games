@@ -32,6 +32,8 @@ interface PresentationPlayerProps {
   reactions: LiveReaction[];
   isProjectorOnly?: boolean;
   isEmbedded?: boolean;
+  isPresenterAuthenticated?: boolean;
+  onOpenPresenterLogin?: () => void;
   onPrevSlide: () => void;
   onNextSlide: () => void;
   onGoToSlide: (index: number) => void;
@@ -68,6 +70,8 @@ export const PresentationPlayer: React.FC<PresentationPlayerProps> = ({
   reactions,
   isProjectorOnly = false,
   isEmbedded = false,
+  isPresenterAuthenticated = true,
+  onOpenPresenterLogin,
   onPrevSlide,
   onNextSlide,
   onGoToSlide,
@@ -95,6 +99,14 @@ export const PresentationPlayer: React.FC<PresentationPlayerProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
+      if (!isPresenterAuthenticated) {
+        if (['ArrowRight', 'ArrowLeft', 'PageDown', 'PageUp', ' ', 'r', 'R'].includes(e.key)) {
+          e.preventDefault();
+          onOpenPresenterLogin?.();
+        }
+        return;
+      }
+
       if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
         e.preventDefault();
         onNextSlide();
@@ -110,7 +122,7 @@ export const PresentationPlayer: React.FC<PresentationPlayerProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isEmbedded, onNextSlide, onPrevSlide, onToggleShowAnswers]);
+  }, [isEmbedded, isPresenterAuthenticated, onNextSlide, onPrevSlide, onToggleShowAnswers, onOpenPresenterLogin]);
 
   const handleToggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -286,6 +298,8 @@ export const PresentationPlayer: React.FC<PresentationPlayerProps> = ({
             showAnswers={showAnswers}
             timerActive={timerActive}
             timerRemaining={timerRemaining}
+            isPresenterAuthenticated={isPresenterAuthenticated}
+            onOpenPresenterLogin={onOpenPresenterLogin}
             onPrevSlide={onPrevSlide}
             onNextSlide={onNextSlide}
             onToggleShowAnswers={onToggleShowAnswers}

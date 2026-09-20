@@ -791,22 +791,69 @@ export default function App() {
     }
   };
 
+  // Transmissão direta de troca de slide para todos os participantes e telas secundárias
+  const broadcastSlideChange = (newIndex: number) => {
+    setShowAnswers(false);
+    const newSlide = slides[newIndex];
+    const newTimer = newSlide?.timeLimitSeconds || null;
+    if (newTimer) {
+      setTimerRemaining(newTimer);
+      setTimerActive(false);
+    } else {
+      setTimerRemaining(null);
+      setTimerActive(false);
+    }
+
+    // Transmite via WebSocket/MQTT/BroadcastChannel instantaneamente para todos os participantes
+    realtimeService.broadcast('CHANGE_SLIDE', roomCode, 'presenter', {
+      currentSlideIndex: newIndex,
+      showAnswers: false,
+      timeLimitSeconds: newTimer
+    });
+
+    realtimeService.broadcast('SYNC_STATE', roomCode, 'presenter', {
+      currentSlideIndex: newIndex,
+      showAnswers: false,
+      timerRemaining: newTimer,
+      timerActive: false,
+      teams,
+      teamMode,
+      slides,
+      participants
+    });
+
+    // Salvar estado no banco local
+    const saved = storageService.getSavedRoom(roomCode);
+    if (saved) {
+      storageService.saveRoom({
+        ...saved,
+        slides,
+        updatedAt: Date.now()
+      });
+    }
+  };
+
   // Botões de navegação de slides do apresentador
   const handlePrevSlide = () => {
     if (currentSlideIndex > 0) {
-      setCurrentSlideIndex((prev) => prev - 1);
+      const nextIdx = currentSlideIndex - 1;
+      setCurrentSlideIndex(nextIdx);
+      broadcastSlideChange(nextIdx);
     }
   };
 
   const handleNextSlide = () => {
     if (currentSlideIndex < slides.length - 1) {
-      setCurrentSlideIndex((prev) => prev + 1);
+      const nextIdx = currentSlideIndex + 1;
+      setCurrentSlideIndex(nextIdx);
+      broadcastSlideChange(nextIdx);
     }
   };
 
   const handleGoToSlide = (index: number) => {
     if (index >= 0 && index < slides.length) {
       setCurrentSlideIndex(index);
+      broadcastSlideChange(index);
     }
   };
 
@@ -1086,64 +1133,82 @@ export default function App() {
     });
   };
 
-  // Iniciar jogo do Infiltrado pelo apresentador
+  // Iniciar jogo do Infiltrado pelo apresentador ou participante
   const handleStartImpostorGame = () => {
     const currentSlide = slides[currentSlideIndex];
     if (!currentSlide || !currentSlide.impostorConfig) return;
 
     const config = currentSlide.impostorConfig;
-    const participantList = Object.values(participants);
+    let currentParts = { ...participants };
+    let participantList = Object.values(currentParts);
 
-    // 1. Validar palavra secreta (deve ser selecionada, sorteada ou digitada previamente pelo apresentador)
-    const wordToUse = config.secretWord?.trim();
+    // 1. Sorteio de Palavra Secreta (se não houver uma pré-selecionada)
+    let wordToUse = config.secretWord?.trim();
     if (!wordToUse) {
-      console.warn('Jogo do Infiltrado não iniciado: palavra secreta não foi definida pelo apresentador.');
-      return;
+      const catName = config.category || 'Personagens Bíblicos';
+      const cat = PRESET_WORD_CATEGORIES.find((c) => c.name === catName) || PRESET_WORD_CATEGORIES[0];
+      const customList = config.customWordList;
+      const wordsPool = (customList && customList.length > 0) ? customList : (cat ? cat.words : ['Moisés', 'Apostólo Paulo', 'Davi', 'Golias']);
+      wordToUse = wordsPool[Math.floor(Math.random() * wordsPool.length)] || 'Moisés';
     }
 
-    // 2. Definir Agentes e Infiltrado caso ainda não tenham sido sorteados/selecionados
-    let agentIds = [...(config.agentParticipantIds || [])];
-    let impostorIds = [...(config.impostorParticipantIds || [])];
+    // 2. Se a lista de participantes estiver vazia, gera bots simulados para o jogo rodar imediatamente
+    if (participantList.length === 0) {
+      const demoBots = [
+        { id: 'bot-lucas', name: 'Lucas', avatar: '🦁' },
+        { id: 'bot-mariana', name: 'Mariana', avatar: '🦊' },
+        { id: 'bot-pedro', name: 'Pedro', avatar: '🚀' },
+        { id: 'bot-beatriz', name: 'Beatriz', avatar: '🐱' }
+      ];
+      demoBots.forEach((bot) => {
+        currentParts[bot.id] = {
+          id: bot.id,
+          name: bot.name,
+          avatar: bot.avatar,
+          score: 0,
+          connectedAt: Date.now()
+        };
+      });
+      participantList = Object.values(currentParts);
+    }
+
+    // 3. Sorteio de Agentes e Infiltrado
+    let agentIds: string[] = [];
+    let impostorIds: string[] = [];
     const targetAgents = config.numAgents || Math.min(4, Math.max(1, participantList.length));
     const targetImpostors = config.numImpostors || 1;
 
+    const shuffled = [...participantList].sort(() => 0.5 - Math.random());
+
     if (config.mode === 'investigator') {
-      if (agentIds.length < targetAgents && participantList.length > 0) {
-        const shuffled = [...participantList].sort(() => 0.5 - Math.random());
-        agentIds = shuffled.slice(0, Math.min(targetAgents, shuffled.length)).map((p) => p.id);
-      }
-      if (impostorIds.length === 0 && agentIds.length > 0) {
-        const shuffledAgents = [...agentIds].sort(() => 0.5 - Math.random());
-        impostorIds = shuffledAgents.slice(0, Math.min(targetImpostors, agentIds.length));
-      }
-      impostorIds.forEach((impId) => {
-        if (!agentIds.includes(impId)) agentIds.push(impId);
-      });
+      agentIds = shuffled.slice(0, Math.min(targetAgents, shuffled.length)).map((p) => p.id);
+      const shuffledAgents = [...agentIds].sort(() => 0.5 - Math.random());
+      impostorIds = shuffledAgents.slice(0, Math.min(targetImpostors, agentIds.length));
     } else {
-      // Classic
-      if (impostorIds.length === 0 && participantList.length > 0) {
-        const shuffled = [...participantList].sort(() => 0.5 - Math.random());
-        impostorIds = shuffled.slice(0, Math.min(targetImpostors, participantList.length)).map((p) => p.id);
-      }
-      if (agentIds.length === 0 && participantList.length > 0) {
-        agentIds = participantList.map((p) => p.id).filter((id) => !impostorIds.includes(id));
-      }
+      // Modo Clássico
+      impostorIds = shuffled.slice(0, Math.min(targetImpostors, participantList.length)).map((p) => p.id);
+      agentIds = participantList.map((p) => p.id).filter((id) => !impostorIds.includes(id));
     }
 
-    // Sincroniza participantes
-    setParticipants((prev) => {
-      const updated = { ...prev };
-      Object.keys(updated).forEach((id) => {
-        updated[id] = {
-          ...updated[id],
-          isAgent: agentIds.includes(id),
-          isImpostor: impostorIds.includes(id)
-        };
-      });
-      return updated;
+    // Garante que o Infiltrado também é um participante
+    impostorIds.forEach((impId) => {
+      if (!agentIds.includes(impId)) agentIds.push(impId);
     });
 
-    handleUpdateImpostorConfig({
+    // Sincroniza participantes
+    Object.keys(currentParts).forEach((id) => {
+      currentParts[id] = {
+        ...currentParts[id],
+        isAgent: agentIds.includes(id),
+        isImpostor: impostorIds.includes(id)
+      };
+    });
+
+    setParticipants(currentParts);
+
+    // 4. Atualiza a configuração do Infiltrado no slide e inicia o jogo
+    const updatedConfig: ImpostorConfig = {
+      ...config,
       gameStarted: true,
       secretWord: wordToUse,
       agentParticipantIds: agentIds,
@@ -1156,7 +1221,32 @@ export default function App() {
       lastEliminatedId: undefined,
       lastEliminatedWasImpostor: undefined,
       winner: undefined
+    };
+
+    const copy = [...slides];
+    copy[currentSlideIndex] = { ...currentSlide, impostorConfig: updatedConfig };
+    setSlides(copy);
+
+    // 5. Transmitir estado sincronizado para TODOS os participantes
+    realtimeService.broadcast('SYNC_STATE', roomCode, 'presenter', {
+      currentSlideIndex,
+      showAnswers,
+      timerRemaining,
+      timerActive,
+      teams,
+      teamMode,
+      slides: copy,
+      participants: currentParts
     });
+
+    const saved = storageService.getSavedRoom(roomCode);
+    if (saved) {
+      storageService.saveRoom({
+        ...saved,
+        slides: copy,
+        updatedAt: Date.now()
+      });
+    }
   };
 
   // Iniciar nova partida com todos os eliminados de volta (aguardando início pelo apresentador)
@@ -1739,6 +1829,11 @@ export default function App() {
             termSubmissions={termSubmissions}
             reactions={reactions}
             isProjectorOnly={isProjectorMode}
+            isPresenterAuthenticated={isPresenterAuthenticated}
+            onOpenPresenterLogin={() => {
+              setPendingTargetView('presenter');
+              setIsLoginModalOpen(true);
+            }}
             onOpenProjectorWindow={() => handleOpenProjectorWindow(roomCode)}
             onPrevSlide={handlePrevSlide}
             onNextSlide={handleNextSlide}
