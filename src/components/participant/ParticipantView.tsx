@@ -100,6 +100,7 @@ export const ParticipantView: React.FC<ParticipantViewProps> = ({
   const [pinConfirmed, setPinConfirmed] = useState(false);
   const [votedSuspectId, setVotedSuspectId] = useState<string | null>(null);
   const [showFullTelao, setShowFullTelao] = useState(false);
+  const [showMiniTelao, setShowMiniTelao] = useState(true);
 
   // Limpa estados de resposta quando avança de slide
   useEffect(() => {
@@ -273,8 +274,69 @@ export const ParticipantView: React.FC<ParticipantViewProps> = ({
       {/* Center Dynamic Body */}
       <main className="flex-1 p-3 sm:p-5 flex flex-col justify-start max-w-xl mx-auto w-full space-y-4">
         {/* TELA DA APRESENTAÇÃO SINCRONIZADA EXATAMENTE IGUAL AO TELÃO (COM BOTÕES E INTERAÇÃO BLOQUEADOS PARA O PARTICIPANTE) */}
-        {currentSlide.type !== 'content_qrcode_lobby' && (
-          <div className="w-full aspect-video max-w-xl mx-auto bg-slate-950 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl relative pointer-events-none select-none cursor-default">
+        {currentSlide.type !== 'content_qrcode_lobby' && !showFullTelao && (
+          <div className="w-full max-w-xl mx-auto space-y-1.5">
+            <div className="flex items-center justify-between px-1">
+              <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-1">
+                <Tv className="w-3 h-3 text-indigo-400" />
+                <span>Telão ao Vivo</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowMiniTelao(!showMiniTelao)}
+                className="text-[10px] font-semibold text-slate-400 hover:text-white px-2 py-0.5 rounded-lg bg-slate-800 border border-slate-700 cursor-pointer"
+              >
+                {showMiniTelao ? 'Ocultar Telão' : 'Mostrar Telão'}
+              </button>
+            </div>
+
+            {showMiniTelao && (
+              <div className="w-full aspect-video bg-slate-950 border border-slate-800 rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl relative pointer-events-none select-none cursor-default">
+                <PresentationPlayer
+                  slides={slides || [currentSlide]}
+                  currentSlideIndex={currentSlideIndex}
+                  roomCode={roomCode}
+                  appUrl=""
+                  participants={allParticipants}
+                  teams={teams}
+                  teamMode={participant.teamId ? 'teams' : 'individual'}
+                  showAnswers={showAnswers}
+                  timerActive={false}
+                  timerRemaining={null}
+                  answersSubmitted={answersSubmitted}
+                  imagePins={imagePins}
+                  termSubmissions={termSubmissions}
+                  reactions={[]}
+                  isProjectorOnly={true}
+                  isEmbedded={true}
+                  onPrevSlide={() => {}}
+                  onNextSlide={() => {}}
+                  onGoToSlide={() => {}}
+                  onToggleShowAnswers={() => {}}
+                  onToggleTimer={() => {}}
+                  onResetTimer={() => {}}
+                  onOpenTeamManager={() => {}}
+                  onAddSimulatedParticipants={() => {}}
+                  onSwitchToEditor={() => {}}
+                  onUpdateImpostorConfig={() => {}}
+                  onStartImpostorVoting={() => {}}
+                  onRevealImpostor={() => {}}
+                  onResetImpostorGame={() => {}}
+                  onStartGarticGame={() => {}}
+                  onUpdateGarticConfig={() => {}}
+                  onAdvanceGarticNextRound={() => {}}
+                  onResetGarticGame={() => {}}
+                  onGarticInPersonCorrect={() => {}}
+                  onGarticInPersonSkip={() => {}}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TELÃO EXPANDIDO EM TELA CHEIA PARA O PARTICIPANTE */}
+        {showFullTelao && (
+          <div className="w-full aspect-video max-w-2xl mx-auto bg-slate-950 border-2 border-indigo-500/40 rounded-3xl overflow-hidden shadow-2xl relative">
             <PresentationPlayer
               slides={slides || [currentSlide]}
               currentSlideIndex={currentSlideIndex}
@@ -305,6 +367,12 @@ export const ParticipantView: React.FC<ParticipantViewProps> = ({
               onStartImpostorVoting={() => {}}
               onRevealImpostor={() => {}}
               onResetImpostorGame={() => {}}
+              onStartGarticGame={() => {}}
+              onUpdateGarticConfig={() => {}}
+              onAdvanceGarticNextRound={() => {}}
+              onResetGarticGame={() => {}}
+              onGarticInPersonCorrect={() => {}}
+              onGarticInPersonSkip={() => {}}
             />
           </div>
         )}

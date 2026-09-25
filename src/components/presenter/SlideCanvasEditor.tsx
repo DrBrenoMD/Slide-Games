@@ -1217,6 +1217,19 @@ const SlideBasePreview: React.FC<{ slide: Slide }> = ({ slide }) => {
           participants={[]}
         />
       );
+    case 'game_impostor_classic':
+    case 'game_impostor_investigator':
+      return (
+        <ImpostorSlideRenderer
+          slide={slide}
+          participants={[]}
+          onUpdateImpostorConfig={() => {}}
+          onStartVoting={() => {}}
+          onRevealImpostor={() => {}}
+          onResetGame={() => {}}
+          isPresenter={false}
+        />
+      );
     case 'content_cover':
     case 'content_bullets':
     case 'content_media':

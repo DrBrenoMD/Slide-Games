@@ -873,6 +873,12 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
                   onResetImpostorGame={onResetImpostorGame}
                   onAdvanceToNextRound={onAdvanceToNextRound}
                   onStartNewMatch={onStartNewMatch}
+                  onStartGarticGame={onStartGarticGame}
+                  onUpdateGarticConfig={onUpdateGarticConfig}
+                  onAdvanceGarticNextRound={onAdvanceGarticNextRound}
+                  onResetGarticGame={onResetGarticGame}
+                  onGarticInPersonCorrect={onGarticInPersonCorrect}
+                  onGarticInPersonSkip={onGarticInPersonSkip}
                 />
               </div>
             </div>
