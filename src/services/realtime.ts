@@ -119,18 +119,29 @@ class RealtimeSyncService {
     try {
       const clientId = `apreslive_${Math.random().toString(36).substring(2, 10)}_${Date.now()}`;
       
-      // Broker público de alta disponibilidade com suporte a WSS
-      const brokerUrl = 'wss://broker.hivemq.com:8884/mqtt';
+      // Lista de brokers públicos de alta disponibilidade com suporte a WSS
+      const brokers = [
+        'wss://broker.hivemq.com:8884/mqtt',
+        'wss://broker.emqx.io:8084/mqtt'
+      ];
+      const brokerUrl = brokers[Math.floor(Math.random() * brokers.length)];
 
       this.mqttClient = mqtt.connect(brokerUrl, {
         clientId,
         clean: true,
         connectTimeout: 5000,
-        reconnectPeriod: 2500,
+        reconnectPeriod: 2000,
         keepalive: 30
       });
 
       this.mqttClient.on('connect', () => {
+        if (this.currentRoomCode) {
+          const topic = `apresentalive_fb2658bb/room/${this.currentRoomCode}/#`;
+          this.mqttClient?.subscribe(topic, { qos: 0 });
+        }
+      });
+
+      this.mqttClient.on('reconnect', () => {
         if (this.currentRoomCode) {
           const topic = `apresentalive_fb2658bb/room/${this.currentRoomCode}/#`;
           this.mqttClient?.subscribe(topic, { qos: 0 });

@@ -106,39 +106,7 @@ export const PresentationPlayer: React.FC<PresentationPlayerProps> = ({
   onGarticInPersonSkip
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const stageWrapperRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = React.useState<number>(1);
   const currentSlide = slides[currentSlideIndex] || slides[0];
-
-  // Cálculo dinâmico e contínuo da escala de exibição para caber em qualquer proporção (de mini-telas a 8K)
-  useEffect(() => {
-    const el = stageWrapperRef.current;
-    if (!el) return;
-
-    const updateScale = () => {
-      const target = stageWrapperRef.current;
-      if (!target) return;
-      const rect = target.getBoundingClientRect();
-      const w = rect.width;
-      const h = rect.height;
-      if (w > 0 && h > 0) {
-        // Base padrão virtual de 1920x1080 (16:9 Cinema/Broadcast)
-        const calculatedScale = Math.min(w / 1920, h / 1080);
-        setScale(Math.max(0.05, calculatedScale));
-      }
-    };
-
-    updateScale();
-    const ro = new ResizeObserver(() => {
-      updateScale();
-    });
-    ro.observe(el);
-    window.addEventListener('resize', updateScale);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener('resize', updateScale);
-    };
-  }, [isEmbedded]);
 
   // Teclas de atalho para o apresentador (apenas quando não embutido)
   useEffect(() => {
@@ -321,32 +289,18 @@ export const PresentationPlayer: React.FC<PresentationPlayerProps> = ({
       {/* Floating live emojis from participants */}
       <LiveReactionsOverlay reactions={reactions} />
 
-      {/* Main Slide Stage with Responsive 16:9 Virtual Canvas Scaling (From small mobile cards to 8K Big-Screen Projectors) */}
-      <div className={`flex-1 w-full h-full overflow-hidden flex items-center justify-center relative z-10 ${isEmbedded ? 'p-0' : 'p-0 sm:p-2'}`}>
-        <div
-          ref={stageWrapperRef}
-          className="w-full h-full flex items-center justify-center relative overflow-hidden"
-        >
-          <div
-            style={{
-              width: 1920,
-              height: 1080,
-              transform: `scale(${scale})`,
-              transformOrigin: 'center center',
-              flexShrink: 0
-            }}
-            className="relative overflow-hidden flex flex-col rounded-2xl shadow-2xl bg-black/20"
+      {/* Main Slide Stage with Fluid 16:9 Cinema Aspect Ratio */}
+      <div className={`flex-1 w-full h-full overflow-hidden flex items-center justify-center relative z-10 ${isEmbedded ? 'p-0' : 'p-2 sm:p-4 md:p-6'}`}>
+        <div className="w-full h-full aspect-video max-h-full max-w-[1920px] mx-auto flex flex-col relative overflow-hidden rounded-xl sm:rounded-3xl shadow-2xl bg-black/25 border border-white/5">
+          <MotionSlideContainer
+            slideKey={currentSlide.id}
+            animation={currentSlide.animation}
           >
-            <MotionSlideContainer
-              slideKey={currentSlide.id}
-              animation={currentSlide.animation}
-            >
-              <div className="w-full h-full relative overflow-hidden flex flex-col">
-                {renderSlideContent()}
-                <AnimatedSlideElementsOverlay elements={currentSlide.elements} />
-              </div>
-            </MotionSlideContainer>
-          </div>
+            <div className="w-full h-full relative overflow-hidden flex flex-col">
+              {renderSlideContent()}
+              <AnimatedSlideElementsOverlay elements={currentSlide.elements} />
+            </div>
+          </MotionSlideContainer>
         </div>
       </div>
 

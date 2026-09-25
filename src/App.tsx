@@ -54,16 +54,52 @@ type AppView = 'portal' | 'presentation' | 'presenter' | 'settings' | 'participa
 
 export default function App() {
   // Controle principal de tela inicial / visão (4 Telas: Apresentação, Apresentador, Configurações, Participantes)
-  const [appView, setAppView] = useState<AppView>('portal');
+  const [appView, setAppView] = useState<AppView>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const urlPin = params.get('pin');
+      const urlView = params.get('view') as AppView;
+      const isProj = params.get('projector') === 'true';
+      if (urlView) return urlView;
+      if (isProj) return 'presentation';
+      if (urlPin) return 'participants';
+
+      const savedView = sessionStorage.getItem('apresentalive_current_view') as AppView;
+      if (savedView && ['presentation', 'presenter', 'settings', 'participants', 'portal'].includes(savedView)) {
+        return savedView;
+      }
+    }
+    return 'portal';
+  });
   const [pendingTargetView, setPendingTargetView] = useState<'presenter' | 'settings' | null>(null);
   const [isProjectorMode, setIsProjectorMode] = useState<boolean>(false);
 
   // Papel do usuário nesta aba: 'presenter' | 'participant'
-  const [role, setRole] = useState<'presenter' | 'participant'>('participant');
+  const [role, setRole] = useState<'presenter' | 'participant'>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const urlRole = params.get('role');
+      if (urlRole === 'presenter') return 'presenter';
+      if (urlRole === 'guest' || params.get('pin')) return 'participant';
+      const savedRole = sessionStorage.getItem('apresentalive_current_role');
+      if (savedRole === 'presenter' || savedRole === 'participant') return savedRole;
+    }
+    return 'participant';
+  });
   const [presenterMode, setPresenterMode] = useState<'present' | 'edit'>('present');
   
-  // Segurança do Apresentador: Por padrão FALSE para exigir a senha definida
-  const [isPresenterAuthenticated, setIsPresenterAuthenticated] = useState<boolean>(false);
+  // Segurança do Apresentador: Restaura da sessão se já foi autenticado nesta aba/sala
+  const [isPresenterAuthenticated, setIsPresenterAuthenticated] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const activePin = storageService.getActiveRoomCode() || DEFAULT_ROOM_CODE;
+        return sessionStorage.getItem(`apresentalive_presenter_auth_${activePin}`) === 'true';
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  });
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
   const [isTeamModalOpen, setIsTeamModalOpen] = useState<boolean>(false);
   const [copiedPin, setCopiedPin] = useState<boolean>(false);
@@ -98,10 +134,15 @@ export default function App() {
   const [termSubmissions, setTermSubmissions] = useState<TermSubmission[]>([]);
   const [reactions, setReactions] = useState<LiveReaction[]>([]);
 
-  // Dados do participante local nesta aba (se estiver como participante)
+  // Dados do participante local nesta aba (restaura objeto completo de avatar, score e time após F5)
   const [localParticipantId, setLocalParticipantId] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
       try {
+        const raw = sessionStorage.getItem('apresentalive_participant_obj') || localStorage.getItem('apresentalive_participant_current');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && parsed.id) return parsed.id;
+        }
         return sessionStorage.getItem('apresentalive_participant_id') || null;
       } catch {
         return null;
@@ -113,13 +154,20 @@ export default function App() {
   const [localParticipant, setLocalParticipant] = useState<Participant | null>(() => {
     if (typeof window !== 'undefined') {
       try {
+        const raw = sessionStorage.getItem('apresentalive_participant_obj') || localStorage.getItem('apresentalive_participant_current');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && parsed.id && parsed.name) {
+            return parsed;
+          }
+        }
         const id = sessionStorage.getItem('apresentalive_participant_id');
         const name = sessionStorage.getItem('apresentalive_participant_name');
         if (id && name) {
           return {
             id,
             name,
-            avatar: '🦊',
+            avatar: sessionStorage.getItem('apresentalive_participant_avatar') || '🦊',
             score: 0,
             connectedAt: Date.now()
           };
@@ -173,6 +221,115 @@ export default function App() {
   // Rastreamento de múltiplos co-apresentadores simultâneos na mesma sala
   const [coPresentersCount, setCoPresentersCount] = useState<number>(1);
   const coPresentersRef = useRef<Map<string, number>>(new Map());
+
+  // Referência viva com o estado mais recente para responder a reconexões imediatas
+  const stateRef = useRef({
+    currentSlideIndex,
+    showAnswers,
+    timerRemaining,
+    timerActive,
+    teams,
+    teamMode,
+    slides,
+    participants,
+    role,
+    isPresenterAuthenticated,
+    roomCode
+  });
+
+  useEffect(() => {
+    stateRef.current = {
+      currentSlideIndex,
+      showAnswers,
+      timerRemaining,
+      timerActive,
+      teams,
+      teamMode,
+      slides,
+      participants,
+      role,
+      isPresenterAuthenticated,
+      roomCode
+    };
+  }, [
+    currentSlideIndex,
+    showAnswers,
+    timerRemaining,
+    timerActive,
+    teams,
+    teamMode,
+    slides,
+    participants,
+    role,
+    isPresenterAuthenticated,
+    roomCode
+  ]);
+
+  // Salva automaticamente o estado da sessão local após qualquer mudança relevante para persistir em F5
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem('apresentalive_current_view', appView);
+        sessionStorage.setItem('apresentalive_current_role', role);
+        sessionStorage.setItem(`apresentalive_presenter_auth_${roomCode}`, isPresenterAuthenticated ? 'true' : 'false');
+        if (localParticipant) {
+          sessionStorage.setItem('apresentalive_participant_obj', JSON.stringify(localParticipant));
+          sessionStorage.setItem('apresentalive_participant_id', localParticipant.id);
+          sessionStorage.setItem('apresentalive_participant_name', localParticipant.name);
+          if (localParticipant.avatar) sessionStorage.setItem('apresentalive_participant_avatar', localParticipant.avatar);
+          localStorage.setItem('apresentalive_participant_current', JSON.stringify(localParticipant));
+          localStorage.setItem(`apresentalive_participant_${roomCode}`, JSON.stringify(localParticipant));
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }, [appView, role, isPresenterAuthenticated, roomCode, localParticipant]);
+
+  // Se for o apresentador, salva o snapshot da apresentação no storageService
+  useEffect(() => {
+    if (role === 'presenter' && isPresenterAuthenticated && roomCode) {
+      storageService.saveSession({
+        roomCode,
+        roomTitle,
+        currentSlideIndex,
+        participants,
+        answersSubmitted,
+        imagePins,
+        termSubmissions,
+        teams,
+        teamMode,
+        slides
+      });
+    }
+  }, [
+    role,
+    isPresenterAuthenticated,
+    roomCode,
+    roomTitle,
+    currentSlideIndex,
+    participants,
+    answersSubmitted,
+    imagePins,
+    termSubmissions,
+    teams,
+    teamMode,
+    slides
+  ]);
+
+  // Auto-reconexão do participante ao recarregar a página (F5)
+  useEffect(() => {
+    if (localParticipant && role === 'participant' && roomCode) {
+      const reconnectTimer = setTimeout(() => {
+        realtimeService.broadcast('PARTICIPANT_JOIN', roomCode, localParticipant.id, {
+          participant: localParticipant
+        });
+        realtimeService.broadcast('REQUEST_FULL_STATE', roomCode, localParticipant.id, {});
+      }, 400);
+
+      return () => clearTimeout(reconnectTimer);
+    }
+  }, [roomCode, role]);
 
   // Referência para timer interval
   const timerRef = useRef<any>(null);
@@ -401,20 +558,36 @@ export default function App() {
           });
           next[p.id] = p;
 
-          if (role === 'presenter') {
-            realtimeService.broadcast('SYNC_STATE', roomCode, 'presenter', {
-              currentSlideIndex,
-              showAnswers,
-              timerRemaining,
-              timerActive,
-              teams,
-              teamMode,
-              slides,
+          if (stateRef.current.role === 'presenter' || stateRef.current.isPresenterAuthenticated) {
+            realtimeService.broadcast('SYNC_STATE', stateRef.current.roomCode, 'presenter', {
+              currentSlideIndex: stateRef.current.currentSlideIndex,
+              showAnswers: stateRef.current.showAnswers,
+              timerRemaining: stateRef.current.timerRemaining,
+              timerActive: stateRef.current.timerActive,
+              teams: stateRef.current.teams,
+              teamMode: stateRef.current.teamMode,
+              slides: stateRef.current.slides,
               participants: next
             });
           }
           return next;
         });
+      }
+
+      // 1.1 Pedido de sincronização completa de estado
+      if (msg.type === 'REQUEST_FULL_STATE') {
+        if (stateRef.current.role === 'presenter' || stateRef.current.isPresenterAuthenticated) {
+          realtimeService.broadcast('SYNC_STATE', stateRef.current.roomCode, 'presenter', {
+            currentSlideIndex: stateRef.current.currentSlideIndex,
+            showAnswers: stateRef.current.showAnswers,
+            timerRemaining: stateRef.current.timerRemaining,
+            timerActive: stateRef.current.timerActive,
+            teams: stateRef.current.teams,
+            teamMode: stateRef.current.teamMode,
+            slides: stateRef.current.slides,
+            participants: stateRef.current.participants
+          });
+        }
       }
 
       // 2. Resposta de múltipla escolha enviada
