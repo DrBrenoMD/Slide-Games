@@ -14,7 +14,7 @@ import {
 } from './types';
 import { SAMPLE_PRESENTATION_SLIDES } from './data/samplePresentations';
 import { PRESET_TEAMS, PRESET_WORD_CATEGORIES } from './data/presetWords';
-import { GARTIC_CATEGORIES, evaluateGuess } from './data/garticPresets';
+import { GARTIC_CATEGORIES, evaluateGuess, getNextHintIndex } from './data/garticPresets';
 import { realtimeService } from './services/realtime';
 import { storageService, SavedRoom, SavedPresentationSession } from './services/storage';
 import { createDefaultSlide } from './utils/slidePresets';
@@ -800,9 +800,13 @@ export default function App() {
             // Atualiza pontuação do acertador
             updatedScores[participantId] = (updatedScores[participantId] || 0) + pointsEarned;
 
-            // O desenhista ganha +5 pts a cada acerto
+            // O desenhista ganha pontos a cada acerto, mas diminui conforme as dicas reveladas
+            // 0 dicas = 5 pts | 1 dica = 4 pts | 2 dicas = 3 pts | 3 dicas = 2 pts | 4+ dicas = 1 pt (mínimo 1 pt)
+            const hintsCount = gConfig.hintsRevealedCount || 0;
+            const drawerPoints = Math.max(1, 5 - hintsCount);
+
             if (gConfig.currentDrawerId) {
-              updatedScores[gConfig.currentDrawerId] = (updatedScores[gConfig.currentDrawerId] || 0) + 5;
+              updatedScores[gConfig.currentDrawerId] = (updatedScores[gConfig.currentDrawerId] || 0) + drawerPoints;
             }
 
             // Atualiza o participante global
@@ -815,7 +819,7 @@ export default function App() {
               };
               if (gConfig.currentDrawerId && next[gConfig.currentDrawerId]) {
                 const drawerP = next[gConfig.currentDrawerId];
-                next[gConfig.currentDrawerId] = { ...drawerP, score: drawerP.score + 5 };
+                next[gConfig.currentDrawerId] = { ...drawerP, score: drawerP.score + drawerPoints };
               }
               return next;
             });
@@ -925,6 +929,43 @@ export default function App() {
               roundState: 'round_end'
             }
           };
+          return copy;
+        });
+      }
+
+      // 6.7 Gartic Revelar Dica de Letra pelo Desenhista
+      if (msg.type === 'GARTIC_REVEAL_HINT') {
+        setSlides((prevSlides) => {
+          const current = prevSlides[currentSlideIndex];
+          if (!current || current.type !== 'game_drawing_gartic' || !current.garticConfig) return prevSlides;
+          const gConfig = current.garticConfig;
+          const currentRevealed = gConfig.revealedLetterIndices || [];
+          const nextIdx = getNextHintIndex(gConfig.secretWord, currentRevealed);
+          if (nextIdx === null) return prevSlides;
+
+          const updatedRevealed = [...currentRevealed, nextIdx];
+          const newHintsCount = (gConfig.hintsRevealedCount || 0) + 1;
+          const updated: GarticConfig = {
+            ...gConfig,
+            revealedLetterIndices: updatedRevealed,
+            hintsRevealedCount: newHintsCount
+          };
+          const copy = [...prevSlides];
+          copy[currentSlideIndex] = { ...current, garticConfig: updated };
+
+          if (role === 'presenter') {
+            realtimeService.broadcast('SYNC_STATE', roomCode, 'presenter', {
+              currentSlideIndex,
+              showAnswers,
+              timerRemaining,
+              timerActive,
+              teams,
+              teamMode,
+              slides: copy,
+              participants
+            });
+          }
+
           return copy;
         });
       }
@@ -1907,10 +1948,12 @@ export default function App() {
     const customList = config.customWordList;
     const pool = customList && customList.length > 0 ? customList : catObj.words;
 
-    // Sorteia quem desenha se não estiver definido ou se for random
+    // Sorteia quem desenha priorizando participantes humanos reais se houver
     let drawerId = config.currentDrawerId;
     if (!drawerId || config.selectionMethod === 'random') {
-      const shuffled = [...participantList].sort(() => 0.5 - Math.random());
+      const realHumans = participantList.filter((p) => !p.id.startsWith('bot-'));
+      const candidateList = realHumans.length > 0 ? realHumans : participantList;
+      const shuffled = [...candidateList].sort(() => 0.5 - Math.random());
       drawerId = shuffled[0]?.id || participantList[0]?.id;
     }
 
@@ -1938,7 +1981,9 @@ export default function App() {
       strokes: [],
       guessedParticipantIds: [],
       chatGuesses: [],
-      scores: config.scores || {}
+      scores: config.scores || {},
+      revealedLetterIndices: [],
+      hintsRevealedCount: 0
     };
 
     const copy = [...slides];
@@ -1969,9 +2014,13 @@ export default function App() {
     const pool = customList && customList.length > 0 ? customList : catObj.words;
 
     // Próximo desenhista da fila
-    const currentIdx = participantList.findIndex((p) => p.id === config.currentDrawerId);
-    const nextDrawerP = participantList.length > 0
-      ? participantList[(currentIdx + 1) % participantList.length]
+    const realHumans = participantList.filter((p) => !p.id.startsWith('bot-'));
+    const candidateList = realHumans.length > 0 ? realHumans : participantList;
+    const currentIdx = candidateList.findIndex(
+      (p) => p.id === config.currentDrawerId || p.name.trim().toLowerCase() === (config.currentDrawerName || '').trim().toLowerCase()
+    );
+    const nextDrawerP = candidateList.length > 0
+      ? candidateList[(currentIdx + 1) % candidateList.length]
       : undefined;
 
     const shuffledWords = [...pool].sort(() => 0.5 - Math.random());
@@ -1992,7 +2041,9 @@ export default function App() {
       currentRound: (config.currentRound || 1) + 1,
       strokes: [],
       guessedParticipantIds: [],
-      chatGuesses: []
+      chatGuesses: [],
+      revealedLetterIndices: [],
+      hintsRevealedCount: 0
     };
 
     const copy = [...slides];
@@ -2024,6 +2075,8 @@ export default function App() {
       guessedParticipantIds: [],
       chatGuesses: [],
       scores: {},
+      revealedLetterIndices: [],
+      hintsRevealedCount: 0,
       winnerId: undefined,
       winnerName: undefined,
       winnerAvatar: undefined
@@ -2117,6 +2170,45 @@ export default function App() {
     realtimeService.broadcast('GARTIC_CHOOSE_WORD', roomCode, localParticipantId || 'presenter', {
       word
     });
+  };
+
+  const handleGarticRevealHint = () => {
+    const currentSlide = slides[currentSlideIndex];
+    if (!currentSlide || currentSlide.type !== 'game_drawing_gartic' || !currentSlide.garticConfig) return;
+    const gConfig = currentSlide.garticConfig;
+    const currentRevealed = gConfig.revealedLetterIndices || [];
+    const nextIdx = getNextHintIndex(gConfig.secretWord, currentRevealed);
+    if (nextIdx === null) return;
+
+    const updatedRevealed = [...currentRevealed, nextIdx];
+    const newHintsCount = (gConfig.hintsRevealedCount || 0) + 1;
+    const updated: GarticConfig = {
+      ...gConfig,
+      revealedLetterIndices: updatedRevealed,
+      hintsRevealedCount: newHintsCount
+    };
+
+    const copy = [...slides];
+    copy[currentSlideIndex] = { ...currentSlide, garticConfig: updated };
+    setSlides(copy);
+
+    realtimeService.broadcast('GARTIC_REVEAL_HINT', roomCode, localParticipantId || 'presenter', {
+      revealedIndex: nextIdx,
+      hintsRevealedCount: newHintsCount
+    });
+
+    if (role === 'presenter') {
+      realtimeService.broadcast('SYNC_STATE', roomCode, 'presenter', {
+        currentSlideIndex,
+        showAnswers,
+        timerRemaining,
+        timerActive,
+        teams,
+        teamMode,
+        slides: copy,
+        participants
+      });
+    }
   };
 
   const handleGarticInPersonCorrect = (participantId?: string) => {
@@ -2989,6 +3081,7 @@ export default function App() {
               onResetGarticGame={handleResetGarticGame}
               onGarticInPersonCorrect={handleGarticInPersonCorrect}
               onGarticInPersonSkip={handleGarticInPersonSkip}
+              onRevealGarticHint={handleGarticRevealHint}
             />
           )
         )}
@@ -3144,6 +3237,7 @@ export default function App() {
               onChooseGarticWord={(word) => {
                 realtimeService.broadcast('GARTIC_CHOOSE_WORD', roomCode, currentLocalParticipant.id, { word });
               }}
+              onRevealGarticHint={handleGarticRevealHint}
               onStartGarticGame={handleStartGarticGame}
             />
           )

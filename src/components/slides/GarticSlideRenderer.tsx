@@ -97,12 +97,19 @@ export const GarticSlideRenderer: React.FC<GarticSlideRendererProps> = ({
     garticScore: config.scores[p.id] !== undefined ? config.scores[p.id] : p.score
   })).sort((a, b) => b.garticScore - a.garticScore);
 
-  // Dica visual da palavra secreta
+  // Dica visual da palavra secreta com suporte a letras reveladas pelo artista
   const timeLimit = config.roundTimeSeconds || 80;
   const timerRem = config.timerRemaining !== undefined ? config.timerRemaining : timeLimit;
-  const timeRatioPassed = Math.max(0, Math.min(1, 1 - (timerRem / timeLimit)));
+  const timeRatioPassed = Math.max(0, Math.min(1, 1 - timerRem / timeLimit));
+  const revealedIndices = config.revealedLetterIndices || [];
+  const hintsCount = config.hintsRevealedCount || 0;
+  const drawerPointsPerGuess = Math.max(1, 5 - hintsCount);
+
   const wordHintDisplay = config.secretWord
-    ? generateWordHint(config.secretWord, isDigital ? timeRatioPassed : 0)
+    ? generateWordHint(
+        config.secretWord,
+        revealedIndices.length > 0 ? revealedIndices : isDigital ? timeRatioPassed : 0
+      )
     : '_ _ _ _ _';
 
   // 1. Lobby / Preparação
@@ -350,8 +357,16 @@ export const GarticSlideRenderer: React.FC<GarticSlideRendererProps> = ({
                   </div>
                   <div className="flex justify-between items-center text-indigo-300">
                     <span>Pontos para o desenhista ({drawerName}):</span>
-                    <span className="font-bold">+{guessedIds.length * 5} pts</span>
+                    <span className="font-bold">
+                      +{guessedIds.length * drawerPointsPerGuess} pts ({drawerPointsPerGuess} pts/acerto)
+                    </span>
                   </div>
+                  {hintsCount > 0 && (
+                    <div className="flex justify-between items-center text-amber-300 text-[11px]">
+                      <span>Dicas reveladas pelo desenhista:</span>
+                      <span className="font-bold">{hintsCount} {hintsCount === 1 ? 'dica' : 'dicas'} (-{Math.min(4, hintsCount)} pts/acerto)</span>
+                    </div>
+                  )}
                 </div>
 
                 {onAdvanceToNextRound && (

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Participant, Slide, GarticConfig, GarticStroke } from '../../types';
 import { DrawingCanvas } from '../common/DrawingCanvas';
 import { DrawingViewer } from '../common/DrawingViewer';
-import { generateWordHint, evaluateGuess } from '../../data/garticPresets';
+import { generateWordHint, evaluateGuess, getNextHintIndex } from '../../data/garticPresets';
 import {
   Paintbrush,
   Send,
@@ -13,7 +13,9 @@ import {
   Trophy,
   Flame,
   Volume2,
-  Check
+  Check,
+  Lightbulb,
+  Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -26,6 +28,7 @@ interface GarticParticipantCardProps {
   onUndoCanvas: () => void;
   onSubmitGuess: (guessText: string) => void;
   onChooseWord: (word: string) => void;
+  onRevealHint?: () => void;
   onStartGarticGame?: () => void;
 }
 
@@ -38,6 +41,7 @@ export const GarticParticipantCard: React.FC<GarticParticipantCardProps> = ({
   onUndoCanvas,
   onSubmitGuess,
   onChooseWord,
+  onRevealHint,
   onStartGarticGame
 }) => {
   const config = slide.garticConfig || {
@@ -53,28 +57,77 @@ export const GarticParticipantCard: React.FC<GarticParticipantCardProps> = ({
     strokes: [],
     guessedParticipantIds: [],
     chatGuesses: [],
-    scores: {}
+    scores: {},
+    revealedLetterIndices: [],
+    hintsRevealedCount: 0
   };
 
   const isDigital = config.mode === 'digital';
-  const isDrawer = config.currentDrawerId === participant.id;
+
+  // Identificação robusta do desenhista (por ID, por Nome ou fallback de participante)
+  const myId = participant.id;
+  const myNameLower = (participant.name || '').trim().toLowerCase();
+  const drawerId = config.currentDrawerId;
+  const drawerNameLower = (config.currentDrawerName || '').trim().toLowerCase();
+
+  let isDrawer = false;
+  if (drawerId && drawerId === myId) {
+    isDrawer = true;
+  } else if (drawerNameLower && myNameLower && drawerNameLower === myNameLower) {
+    isDrawer = true;
+  } else if (drawerId) {
+    const matchedDrawer = allParticipants.find((p) => p.id === drawerId);
+    if (matchedDrawer && matchedDrawer.name.trim().toLowerCase() === myNameLower) {
+      isDrawer = true;
+    }
+  }
+
   const hasGuessed = (config.guessedParticipantIds || []).includes(participant.id);
   const [guessInput, setGuessInput] = useState('');
   const [localFeedback, setLocalFeedback] = useState<string | null>(null);
+  const [hintNotification, setHintNotification] = useState<string | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
+  const prevHintsCountRef = useRef<number>(config.hintsRevealedCount || 0);
 
   // Drawer info
   const drawer = allParticipants.find((p) => p.id === config.currentDrawerId);
   const drawerName = drawer?.name || config.currentDrawerName || 'Artista';
   const drawerAvatar = drawer?.avatar || config.currentDrawerAvatar || '🎨';
 
-  // Dica com underscores
+  // Dica com underscores e letras reveladas pelo desenhista
   const timeLimit = config.roundTimeSeconds || 80;
   const timerRem = config.timerRemaining !== undefined ? config.timerRemaining : timeLimit;
-  const timeRatioPassed = Math.max(0, Math.min(1, 1 - (timerRem / timeLimit)));
+  const timeRatioPassed = Math.max(0, Math.min(1, 1 - timerRem / timeLimit));
+  const revealedIndices = config.revealedLetterIndices || [];
+
   const wordHint = config.secretWord
-    ? generateWordHint(config.secretWord, isDigital ? timeRatioPassed : 0)
+    ? generateWordHint(
+        config.secretWord,
+        revealedIndices.length > 0 ? revealedIndices : isDigital ? timeRatioPassed : 0
+      )
     : '_ _ _ _ _';
+
+  // Notificação visual para os adivinhadores quando o desenhista revela uma letra
+  useEffect(() => {
+    const currentCount = config.hintsRevealedCount || 0;
+    if (currentCount > prevHintsCountRef.current && !isDrawer) {
+      setHintNotification('💡 O artista liberou uma nova letra na dica!');
+      const timer = setTimeout(() => setHintNotification(null), 3000);
+      prevHintsCountRef.current = currentCount;
+      return () => clearTimeout(timer);
+    }
+    prevHintsCountRef.current = currentCount;
+  }, [config.hintsRevealedCount, isDrawer]);
+
+  // Cálculo de pontuação do desenhista com penalidade de dicas reveladas
+  // Base = 5 pontos por acerto. Cada dica revelada diminui 1 ponto (Mínimo: 1 ponto).
+  const hintsCount = config.hintsRevealedCount || 0;
+  const drawerPointsPerGuess = Math.max(1, 5 - hintsCount);
+  const nextDrawerPoints = Math.max(1, drawerPointsPerGuess - 1);
+
+  // Verifica se ainda há letras disponíveis para o desenhista revelar
+  const nextHintIdx = config.secretWord ? getNextHintIndex(config.secretWord, revealedIndices) : null;
+  const canRevealMoreHints = nextHintIdx !== null && config.roundState === 'drawing';
 
   // Auto scroll do chat
   useEffect(() => {
@@ -207,31 +260,73 @@ export const GarticParticipantCard: React.FC<GarticParticipantCardProps> = ({
   if (isDrawer) {
     return (
       <div className="w-full h-full flex flex-col justify-between p-2 space-y-2 select-none overflow-hidden">
-        {/* Secret Word Header Banner */}
-        <div className="bg-gradient-to-r from-amber-600 via-orange-600 to-indigo-600 p-2.5 sm:p-3 rounded-2xl text-white shadow-xl flex items-center justify-between shrink-0">
-          <div className="min-w-0">
-            <span className="text-[10px] font-black uppercase tracking-wider text-amber-200 block">
-              Você está desenhando:
-            </span>
-            <div className="text-base sm:text-xl font-black truncate uppercase font-display">
-              {config.secretWord || 'PALAVRA SECRETA'}
+        {/* Secret Word Header Banner com Controles de Dica e Pontuação */}
+        <div className="bg-gradient-to-r from-amber-600 via-orange-600 to-indigo-700 p-2.5 sm:p-3 rounded-2xl text-white shadow-xl flex flex-col gap-2 shrink-0">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0">
+              <span className="text-[10px] font-black uppercase tracking-wider text-amber-200 block">
+                Você é o Artista! Desenhe:
+              </span>
+              <div className="text-lg sm:text-2xl font-black truncate uppercase font-display tracking-tight text-white drop-shadow">
+                {config.secretWord || 'PALAVRA SECRETA'}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="px-2.5 py-1 rounded-xl bg-black/30 backdrop-blur-sm text-xs font-bold flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span>{config.guessedParticipantIds?.length || 0} acertaram</span>
+              </div>
+
+              <div className="w-9 h-9 rounded-xl bg-black/40 flex items-center justify-center font-mono font-black text-sm">
+                {timerRem}
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="px-2.5 py-1 rounded-xl bg-black/30 backdrop-blur-sm text-xs font-bold flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-              <span>{config.guessedParticipantIds?.length || 0} acertaram</span>
+          {/* Dica da Palavra & Painel de Revelação com Penalidade de Pontos */}
+          <div className="bg-black/30 backdrop-blur-md rounded-xl p-2 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-start">
+              <span className="text-[10px] text-amber-200 font-bold uppercase tracking-wider">
+                Telão vê:
+              </span>
+              <span className="font-mono font-black text-sm tracking-widest text-amber-300">
+                {wordHint}
+              </span>
             </div>
 
-            <div className="w-9 h-9 rounded-xl bg-black/40 flex items-center justify-center font-mono font-black text-sm">
-              {timerRem}
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+              <div className="text-[11px] font-bold text-slate-200 flex items-center gap-1">
+                <span>Ganho:</span>
+                <span className="text-amber-300 font-black font-mono">+{drawerPointsPerGuess} pts/acerto</span>
+              </div>
+
+              {onRevealHint && (
+                <button
+                  type="button"
+                  onClick={onRevealHint}
+                  disabled={!canRevealMoreHints}
+                  className={`px-3 py-1.5 rounded-lg font-black text-xs flex items-center gap-1.5 shadow transition-all cursor-pointer ${
+                    canRevealMoreHints
+                      ? 'bg-amber-400 hover:bg-amber-300 text-slate-950 active:scale-95 ring-2 ring-amber-300/40'
+                      : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                  }`}
+                  title="Revelar 1 letra no telão (diminui 1 ponto ganho por acerto)"
+                >
+                  <Lightbulb className="w-3.5 h-3.5 text-slate-950" />
+                  <span>
+                    {canRevealMoreHints
+                      ? `Revelar Letra (${drawerPointsPerGuess} → ${nextDrawerPoints} pts)`
+                      : 'Dicas Esgotadas'}
+                  </span>
+                </button>
+              )}
             </div>
           </div>
         </div>
 
         {/* Full Drawing Canvas */}
-        <div className="flex-1 w-full min-h-[300px] overflow-hidden">
+        <div className="flex-1 w-full min-h-[300px] overflow-hidden rounded-2xl shadow-xl">
           <DrawingCanvas
             strokes={config.strokes || []}
             onStrokeComplete={onDrawStroke}
@@ -271,6 +366,14 @@ export const GarticParticipantCard: React.FC<GarticParticipantCardProps> = ({
           {timerRem}
         </div>
       </div>
+
+      {/* Alerta de Dica Revelada pelo Desenhista */}
+      {hintNotification && (
+        <div className="p-2 rounded-xl bg-amber-500/20 border border-amber-500/50 text-amber-300 text-xs font-black text-center flex items-center justify-center gap-1.5 animate-bounce">
+          <Lightbulb className="w-4 h-4 text-amber-400" />
+          <span>{hintNotification}</span>
+        </div>
+      )}
 
       {/* Mirrored Drawing Viewer */}
       <div className="flex-1 w-full min-h-[200px] max-h-[45vh] rounded-2xl overflow-hidden shadow-xl border border-slate-800">
@@ -351,3 +454,4 @@ export const GarticParticipantCard: React.FC<GarticParticipantCardProps> = ({
     </div>
   );
 };
+

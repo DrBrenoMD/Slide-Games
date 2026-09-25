@@ -172,10 +172,10 @@ export function evaluateGuess(
 }
 
 /**
- * Gera a dica visual da palavra com underscores e letras reveladas progressivamente
+ * Gera a dica visual da palavra com underscores e letras reveladas pelo desenhista
  * Ex: "C _ R R _" para "CARRO"
  */
-export function generateWordHint(secretWord: string, revealRatio: number = 0): string {
+export function generateWordHint(secretWord: string, revealedIndicesOrRatio: number[] | number = []): string {
   if (!secretWord) return '';
 
   const chars = secretWord.split('');
@@ -187,23 +187,28 @@ export function generateWordHint(secretWord: string, revealRatio: number = 0): s
     }
   });
 
-  const totalLetters = lettersIndices.length;
-  // Quantidade de letras a revelar conforme a porcentagem de tempo passado (ex: até 35% das letras)
-  const countToReveal = Math.min(
-    Math.floor(totalLetters * Math.min(0.4, revealRatio)),
-    Math.max(0, totalLetters - 2)
-  );
-
-  // Seleciona índices determinísticos baseados na palavra para manter consistência
   const revealedIndices = new Set<number>();
-  if (countToReveal > 0 && lettersIndices.length > 0) {
-    revealedIndices.add(lettersIndices[0]); // Primeira letra
-  }
-  if (countToReveal > 1 && lettersIndices.length > 3) {
-    revealedIndices.add(lettersIndices[Math.floor(lettersIndices.length / 2)]);
-  }
-  if (countToReveal > 2 && lettersIndices.length > 5) {
-    revealedIndices.add(lettersIndices[lettersIndices.length - 2]);
+
+  if (Array.isArray(revealedIndicesOrRatio)) {
+    revealedIndicesOrRatio.forEach((idx) => revealedIndices.add(idx));
+  } else {
+    // Se for número (ratio)
+    const revealRatio = revealedIndicesOrRatio;
+    const totalLetters = lettersIndices.length;
+    const countToReveal = Math.min(
+      Math.floor(totalLetters * Math.min(0.4, revealRatio)),
+      Math.max(0, totalLetters - 2)
+    );
+
+    if (countToReveal > 0 && lettersIndices.length > 0) {
+      revealedIndices.add(lettersIndices[0]);
+    }
+    if (countToReveal > 1 && lettersIndices.length > 3) {
+      revealedIndices.add(lettersIndices[Math.floor(lettersIndices.length / 2)]);
+    }
+    if (countToReveal > 2 && lettersIndices.length > 5) {
+      revealedIndices.add(lettersIndices[lettersIndices.length - 2]);
+    }
   }
 
   return chars
@@ -217,4 +222,43 @@ export function generateWordHint(secretWord: string, revealRatio: number = 0): s
       return '_';
     })
     .join(' ');
+}
+
+/**
+ * Retorna o próximo índice de letra a ser revelado pelo desenhista
+ */
+export function getNextHintIndex(secretWord: string, currentRevealed: number[] = []): number | null {
+  if (!secretWord) return null;
+
+  const chars = secretWord.split('');
+  const lettersIndices: number[] = [];
+
+  chars.forEach((char, idx) => {
+    if (/[a-zA-Z0-9\u00C0-\u00FF]/.test(char)) {
+      lettersIndices.push(idx);
+    }
+  });
+
+  // Garante que pelo menos 2 letras fiquem ocultas para adivinhar
+  const maxAllowedReveals = Math.max(1, lettersIndices.length - 2);
+  if (currentRevealed.length >= maxAllowedReveals) {
+    return null;
+  }
+
+  const unrevealed = lettersIndices.filter((idx) => !currentRevealed.includes(idx));
+  if (unrevealed.length === 0) return null;
+
+  // Ordem inteligente de revelação: 1º primeira letra, 2º letra do meio, 3º última letra, 4º demais
+  const first = unrevealed.find((idx) => idx === lettersIndices[0]);
+  if (first !== undefined) return first;
+
+  const middleIdx = lettersIndices[Math.floor(lettersIndices.length / 2)];
+  const middle = unrevealed.find((idx) => idx === middleIdx);
+  if (middle !== undefined) return middle;
+
+  const lastIdx = lettersIndices[lettersIndices.length - 1];
+  const last = unrevealed.find((idx) => idx === lastIdx);
+  if (last !== undefined) return last;
+
+  return unrevealed[0];
 }

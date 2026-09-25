@@ -312,6 +312,8 @@ export interface GarticConfig {
   guessedParticipantIds: string[]; // Participantes que já acertaram nesta rodada (em ordem cronológica de acerto)
   chatGuesses: GarticGuess[];
   scores: Record<string, number>; // Pontuação acumulada de cada participante no jogo de desenho
+  revealedLetterIndices?: number[]; // Índices de letras da palavra secreta reveladas pelo desenhista
+  hintsRevealedCount?: number; // Contador de dicas liberadas na rodada atual
   winnerId?: string;
   winnerName?: string;
   winnerAvatar?: string;

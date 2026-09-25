@@ -46,8 +46,10 @@ import {
   Paintbrush,
   CheckCircle2,
   Flame,
-  ArrowRight
+  ArrowRight,
+  Lightbulb
 } from 'lucide-react';
+import { generateWordHint, getNextHintIndex } from '../../data/garticPresets';
 
 interface PresenterConsoleProps {
   slides: Slide[];
@@ -97,6 +99,7 @@ interface PresenterConsoleProps {
   onResetGarticGame?: () => void;
   onGarticInPersonCorrect?: (participantId?: string) => void;
   onGarticInPersonSkip?: () => void;
+  onRevealGarticHint?: () => void;
 }
 
 export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
@@ -146,7 +149,8 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
   onAdvanceGarticNextRound,
   onResetGarticGame,
   onGarticInPersonCorrect,
-  onGarticInPersonSkip
+  onGarticInPersonSkip,
+  onRevealGarticHint
 }) => {
   const currentSlide = slides[currentSlideIndex] || slides[0];
   const { user, savePresentationToCloud, loginWithGoogle } = useAuth();
@@ -2053,13 +2057,44 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
                   </button>
                 </div>
 
-                <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-between">
-                  <span className="text-xl font-mono font-black text-amber-300">
-                    {garticConfig.secretWord ? garticConfig.secretWord.toUpperCase() : '(Será sorteada ao iniciar)'}
-                  </span>
-                  <span className="text-xs text-slate-400 font-mono">
-                    Tema: {garticConfig.category}
-                  </span>
+                <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-2">
+                  <div>
+                    <span className="text-xl font-mono font-black text-amber-300">
+                      {garticConfig.secretWord ? garticConfig.secretWord.toUpperCase() : '(Será sorteada ao iniciar)'}
+                    </span>
+                    <span className="text-xs text-slate-400 font-mono block">
+                      Tema: {garticConfig.category}
+                    </span>
+                  </div>
+
+                  {garticConfig.secretWord && garticConfig.roundState === 'drawing' && (
+                    <div className="flex items-center gap-2">
+                      <div className="text-right">
+                        <span className="text-[10px] text-slate-400 font-bold block uppercase">Dica no Telão:</span>
+                        <span className="text-sm font-mono font-black text-amber-300">
+                          {generateWordHint(garticConfig.secretWord, garticConfig.revealedLetterIndices || [])}
+                        </span>
+                      </div>
+
+                      {onRevealGarticHint && (
+                        <button
+                          type="button"
+                          onClick={onRevealGarticHint}
+                          disabled={
+                            getNextHintIndex(
+                              garticConfig.secretWord,
+                              garticConfig.revealedLetterIndices || []
+                            ) === null
+                          }
+                          className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
+                          title="Revelar 1 letra da palavra (diminui 1 pt ganho pelo desenhista)"
+                        >
+                          <Lightbulb className="w-3.5 h-3.5" />
+                          <span>Revelar Dica ({Math.max(1, 5 - (garticConfig.hintsRevealedCount || 0))} pts)</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 

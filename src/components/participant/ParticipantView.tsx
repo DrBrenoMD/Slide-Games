@@ -56,6 +56,7 @@ interface ParticipantViewProps {
   onUndoCanvas?: () => void;
   onSubmitGarticGuess?: (guessText: string) => void;
   onChooseGarticWord?: (word: string) => void;
+  onRevealGarticHint?: () => void;
   onStartGarticGame?: () => void;
 }
 
@@ -89,6 +90,7 @@ export const ParticipantView: React.FC<ParticipantViewProps> = ({
   onUndoCanvas,
   onSubmitGarticGuess,
   onChooseGarticWord,
+  onRevealGarticHint,
   onStartGarticGame
 }) => {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
@@ -274,7 +276,7 @@ export const ParticipantView: React.FC<ParticipantViewProps> = ({
       {/* Center Dynamic Body */}
       <main className="flex-1 p-3 sm:p-5 flex flex-col justify-start max-w-xl mx-auto w-full space-y-4">
         {/* TELA DA APRESENTAÇÃO SINCRONIZADA EXATAMENTE IGUAL AO TELÃO (COM BOTÕES E INTERAÇÃO BLOQUEADOS PARA O PARTICIPANTE) */}
-        {currentSlide.type !== 'content_qrcode_lobby' && !showFullTelao && (
+        {currentSlide.type !== 'content_qrcode_lobby' && currentSlide.type !== 'game_drawing_gartic' && !showFullTelao && (
           <div className="w-full max-w-xl mx-auto space-y-1.5">
             <div className="flex items-center justify-between px-1">
               <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-1">
@@ -959,6 +961,7 @@ export const ParticipantView: React.FC<ParticipantViewProps> = ({
             onUndoCanvas={onUndoCanvas || (() => {})}
             onSubmitGuess={onSubmitGarticGuess || (() => {})}
             onChooseWord={onChooseGarticWord || (() => {})}
+            onRevealHint={onRevealGarticHint}
             onStartGarticGame={onStartGarticGame}
           />
         )}
