@@ -299,6 +299,8 @@ function getDefaultTitleForType(type: SlideType, index: number): string {
       return 'O Infiltrado: Modo Investigador (Agentes no Palco)';
     case 'game_impostor_classic':
       return 'O Infiltrado: Modo Clássico (Todos no Celular)';
+    case 'game_drawing_gartic':
+      return 'Jogo de Desenho: Gartic & Imagem e Ação';
     case 'content_cover':
       return 'Título da Apresentação';
     case 'content_bullets':
@@ -328,6 +330,8 @@ function getDefaultSubtitleForType(type: SlideType): string {
       return 'Agentes no palco dão dicas. A plateia investiga quem é o impostor!';
     case 'game_impostor_classic':
       return 'Descubra quem não recebeu a palavra secreta!';
+    case 'game_drawing_gartic':
+      return 'Desenhe no celular e adivinhe o que os outros estão desenhando!';
     case 'interaction_word_cloud':
       return 'Envie palavras pelo seu celular para compor a nuvem ao vivo';
     case 'content_qrcode_lobby':
@@ -434,6 +438,31 @@ function populateTypeSpecificFields(slide: Slide, type: SlideType): Slide {
     };
 
     result.impostorConfig = impostorConfig;
+  }
+
+  // Jogo de Desenho (Gartic & Imagem e Ação)
+  if (type === 'game_drawing_gartic') {
+    const existingGartic = result.garticConfig;
+    result.garticConfig = {
+      gameStarted: existingGartic?.gameStarted ?? false,
+      mode: existingGartic?.mode || 'digital',
+      category: existingGartic?.category || 'Geral & Variados',
+      customWordList: existingGartic?.customWordList || [],
+      secretWord: existingGartic?.secretWord || '',
+      wordChoices: existingGartic?.wordChoices || [],
+      wordHint: existingGartic?.wordHint || '',
+      selectionMethod: existingGartic?.selectionMethod || 'random',
+      targetScore: existingGartic?.targetScore || 120,
+      roundTimeSeconds: existingGartic?.roundTimeSeconds || 80,
+      timerRemaining: existingGartic?.timerRemaining,
+      timerActive: false,
+      currentRound: existingGartic?.currentRound || 1,
+      roundState: 'lobby',
+      strokes: existingGartic?.strokes || [],
+      guessedParticipantIds: existingGartic?.guessedParticipantIds || [],
+      chatGuesses: existingGartic?.chatGuesses || [],
+      scores: existingGartic?.scores || {}
+    };
   }
 
   // Conteúdos

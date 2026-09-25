@@ -53,6 +53,7 @@ export type SlideType =
   // Jogos
   | 'game_impostor_classic'
   | 'game_impostor_investigator'
+  | 'game_drawing_gartic'
   // Ranking
   | 'leaderboard';
 
@@ -262,6 +263,61 @@ export interface ImpostorConfig {
   votingAudience: 'all' | 'players_only';
 }
 
+export interface GarticPoint {
+  x: number; // 0 - 100 (% da largura do canvas)
+  y: number; // 0 - 100 (% da altura do canvas)
+}
+
+export interface GarticStroke {
+  id?: string;
+  color: string;
+  width: number;
+  points: GarticPoint[];
+  isEraser?: boolean;
+}
+
+export interface GarticGuess {
+  id: string;
+  participantId: string;
+  participantName: string;
+  participantAvatar?: string;
+  text: string;
+  isCorrect?: boolean;
+  isClose?: boolean;
+  pointsEarned?: number;
+  timestamp: number;
+}
+
+export interface GarticConfig {
+  gameStarted?: boolean;
+  mode: 'digital' | 'in_person'; // 'digital' (Gartic clássico com chat de palpites) ou 'in_person' (Imagem e Ação presencial onde gritam a palavra)
+  category: string;
+  customWordList?: string[];
+  secretWord: string;
+  wordChoices?: string[]; // Opções de palavras para o desenhista escolher (ex: 3 opções)
+  wordHint?: string; // Dica com letras e underscores (ex: "E _ E _ A N _ E")
+  selectionMethod: 'random' | 'manual'; // Sorteio aleatório ou escolha manual do apresentador
+  currentDrawerId?: string; // ID do participante que está desenhando no momento
+  currentDrawerName?: string;
+  currentDrawerAvatar?: string;
+  drawerQueue?: string[]; // Fila de participantes que ainda vão desenhar
+  targetScore: number; // Meta de pontuação para vitória final (ex: 120 pontos)
+  roundTimeSeconds: number; // Tempo da rodada de desenho (ex: 80s)
+  timerRemaining?: number;
+  timerActive?: boolean;
+  currentRound: number;
+  maxRounds?: number;
+  roundState: 'lobby' | 'choosing_word' | 'drawing' | 'round_end' | 'game_over';
+  strokes: GarticStroke[];
+  guessedParticipantIds: string[]; // Participantes que já acertaram nesta rodada (em ordem cronológica de acerto)
+  chatGuesses: GarticGuess[];
+  scores: Record<string, number>; // Pontuação acumulada de cada participante no jogo de desenho
+  winnerId?: string;
+  winnerName?: string;
+  winnerAvatar?: string;
+  lastGuessedName?: string;
+}
+
 export interface Slide {
   id: string;
   type: SlideType;
@@ -289,6 +345,9 @@ export interface Slide {
   
   // Para O Infiltrado
   impostorConfig?: ImpostorConfig;
+  
+  // Para Jogo de Desenho (Estilo Gartic / Imagem e Ação)
+  garticConfig?: GarticConfig;
   
   // Customização visual estilo Canva & Temas Visuais Avançados
   theme: {

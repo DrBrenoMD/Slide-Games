@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Participant, Slide, Team, ImagePinSubmission, TermSubmission } from '../../types';
+import { Participant, Slide, Team, ImagePinSubmission, TermSubmission, GarticStroke } from '../../types';
 import { ImpostorParticipantCard } from '../motion/ImpostorAlert';
+import { GarticParticipantCard } from './GarticParticipantCard';
 import { ContentSlideRenderer } from '../slides/ContentSlideRenderer';
 import { PresentationPlayer } from '../presenter/PresentationPlayer';
 import { PodiumPod } from '../motion/PodiumPod';
@@ -50,6 +51,12 @@ interface ParticipantViewProps {
   onAdvanceToNextRound?: (changeWord?: boolean) => void;
   onStartNewMatch?: () => void;
   onToggleRevealWordToInvestigators?: () => void;
+  onDrawStroke?: (stroke: GarticStroke) => void;
+  onClearCanvas?: () => void;
+  onUndoCanvas?: () => void;
+  onSubmitGarticGuess?: (guessText: string) => void;
+  onChooseGarticWord?: (word: string) => void;
+  onStartGarticGame?: () => void;
 }
 
 export const ParticipantView: React.FC<ParticipantViewProps> = ({
@@ -76,7 +83,13 @@ export const ParticipantView: React.FC<ParticipantViewProps> = ({
   onRevealImpostor,
   onAdvanceToNextRound,
   onStartNewMatch,
-  onToggleRevealWordToInvestigators
+  onToggleRevealWordToInvestigators,
+  onDrawStroke,
+  onClearCanvas,
+  onUndoCanvas,
+  onSubmitGarticGuess,
+  onChooseGarticWord,
+  onStartGarticGame
 }) => {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [textInput, setTextInput] = useState('');
@@ -645,6 +658,45 @@ export const ParticipantView: React.FC<ParticipantViewProps> = ({
                   </div>
                 )}
 
+                {/* Se a revelação final da partida estiver ativa */}
+                {impostorConfig?.revealState === 'revealed' && (
+                  <div className="p-4 sm:p-5 rounded-3xl bg-slate-900 border border-slate-800 text-center space-y-3 shadow-2xl animate-in fade-in zoom-in-95">
+                    <span className="px-3 py-1 rounded-full bg-rose-500/20 text-rose-300 text-[11px] font-black uppercase tracking-wider border border-rose-500/30 inline-block">
+                      🏁 Fim de Jogo • Resultado Final
+                    </span>
+
+                    <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/20 via-indigo-500/20 to-rose-500/20 border-2 border-amber-400/60 text-center space-y-2 shadow-xl">
+                      <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-amber-300 block">
+                        Palavra Secreta Revelada:
+                      </span>
+                      <div className="text-3xl sm:text-4xl font-black text-amber-300 font-display tracking-tight drop-shadow-[0_0_15px_rgba(251,191,36,0.6)]">
+                        {impostorConfig.secretWord}
+                      </div>
+                      <span className="text-xs text-slate-300 block">
+                        Categoria: <strong className="text-white">{impostorConfig.category || 'Geral'}</strong>
+                      </span>
+                      <div className="inline-block px-3.5 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-black/50 border border-white/20">
+                        {impostorConfig.winner === 'agents' || impostorConfig.winner === 'civilians' ? (
+                          <span className="text-emerald-400">🛡️ Vitória dos Agentes!</span>
+                        ) : (
+                          <span className="text-rose-400">🚨 Vitória dos Infiltrados!</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {(onStartNewMatch || onStartImpostorGame) && (
+                      <div className="pt-2">
+                        <button
+                          onClick={onStartNewMatch || onStartImpostorGame}
+                          className="w-full py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs sm:text-sm shadow-lg flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                        >
+                          <span>🔄 Iniciar Nova Partida</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Se a revelação de eliminação da rodada estiver ativa */}
                 {impostorConfig?.revealState === 'round_elimination' && (
                   <div className="p-4 sm:p-5 rounded-3xl bg-slate-900 border border-slate-800 text-center space-y-3 shadow-2xl">
@@ -692,6 +744,28 @@ export const ParticipantView: React.FC<ParticipantViewProps> = ({
                     {impostorConfig.lastEliminatedId === participant.id && (
                       <div className="p-3 rounded-2xl bg-rose-600/25 border border-rose-500 text-rose-200 text-xs font-bold">
                         ⚠️ Você foi o mais votado da rodada e foi eliminado! Mas continue na sala para acompanhar as próximas rodadas e o resultado final.
+                      </div>
+                    )}
+
+                    {/* Revelação da Palavra Secreta ao Encerrar Partida */}
+                    {impostorConfig?.winner !== undefined && (
+                      <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/20 via-indigo-500/20 to-purple-500/20 border-2 border-amber-400/60 text-center space-y-2 shadow-xl animate-in fade-in zoom-in-95">
+                        <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-amber-300 block">
+                          🏁 Partida Encerrada • Palavra Secreta Revelada
+                        </span>
+                        <div className="text-2xl sm:text-4xl font-black text-amber-300 font-display tracking-tight drop-shadow-[0_0_15px_rgba(251,191,36,0.6)]">
+                          {impostorConfig.secretWord}
+                        </div>
+                        <span className="text-xs text-slate-300 block">
+                          Categoria: <strong className="text-white">{impostorConfig.category || 'Geral'}</strong>
+                        </span>
+                        <div className="inline-block px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-black/40 border border-white/20">
+                          {impostorConfig.winner === 'agents' || impostorConfig.winner === 'civilians' ? (
+                            <span className="text-emerald-400">🛡️ Vitória dos Agentes & Investigadores!</span>
+                          ) : (
+                            <span className="text-rose-400">🚨 Vitória dos Infiltrados!</span>
+                          )}
+                        </div>
                       </div>
                     )}
 
@@ -805,6 +879,21 @@ export const ParticipantView: React.FC<ParticipantViewProps> = ({
               </div>
             );
           })()}
+
+        {/* JOGO DE DESENHO (GARTIC & IMAGEM E AÇÃO) */}
+        {!showFullTelao && currentSlide.type === 'game_drawing_gartic' && (
+          <GarticParticipantCard
+            slide={currentSlide}
+            participant={participant}
+            allParticipants={allParticipants}
+            onDrawStroke={onDrawStroke || (() => {})}
+            onClearCanvas={onClearCanvas || (() => {})}
+            onUndoCanvas={onUndoCanvas || (() => {})}
+            onSubmitGuess={onSubmitGarticGuess || (() => {})}
+            onChooseWord={onChooseGarticWord || (() => {})}
+            onStartGarticGame={onStartGarticGame}
+          />
+        )}
       </main>
 
       {/* Bottom Floating Reactions Bar */}

@@ -5,24 +5,30 @@ import {
   Team,
   TeamMode,
   ImpostorConfig,
+  GarticConfig,
+  GarticStroke,
+  GarticGuess,
   ImagePinSubmission,
   TermSubmission,
   LiveReaction
 } from './types';
 import { SAMPLE_PRESENTATION_SLIDES } from './data/samplePresentations';
 import { PRESET_TEAMS, PRESET_WORD_CATEGORIES } from './data/presetWords';
+import { GARTIC_CATEGORIES, evaluateGuess } from './data/garticPresets';
 import { realtimeService } from './services/realtime';
-import { storageService, SavedRoom } from './services/storage';
+import { storageService, SavedRoom, SavedPresentationSession } from './services/storage';
 import { createDefaultSlide } from './utils/slidePresets';
 import { PresentationPlayer } from './components/presenter/PresentationPlayer';
 import { SlideEditor } from './components/presenter/SlideEditor';
 import { PresenterConsole } from './components/presenter/PresenterConsole';
 import { PresenterLoginModal } from './components/presenter/PresenterLoginModal';
 import { TeamManagerModal } from './components/presenter/TeamManagerModal';
+import { ResumePresentationModal } from './components/common/ResumePresentationModal';
 import { ParticipantJoin } from './components/participant/ParticipantJoin';
 import { ParticipantView } from './components/participant/ParticipantView';
 import { HomePortal } from './components/home/HomePortal';
 import { UserAuthBar } from './components/common/UserAuthBar';
+import { SavedPresentation } from './types';
 import {
   Smartphone,
   Monitor,
@@ -61,6 +67,16 @@ export default function App() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
   const [isTeamModalOpen, setIsTeamModalOpen] = useState<boolean>(false);
   const [copiedPin, setCopiedPin] = useState<boolean>(false);
+
+  // Modal para perguntar se deseja iniciar nova apresentação ou retomar a anterior
+  const [pendingResumeSession, setPendingResumeSession] = useState<{
+    roomCode: string;
+    roomTitle: string;
+    session: SavedPresentationSession;
+    targetView: AppView;
+    pendingRoomData?: SavedRoom;
+    pendingPresentation?: SavedPresentation;
+  } | null>(null);
 
   // Estado da Sala (Apresentação, slides, participantes, respostas)
   const [roomCode, setRoomCode] = useState<string>(DEFAULT_ROOM_CODE);
@@ -302,6 +318,54 @@ export default function App() {
     return () => clearInterval(timerRef.current);
   }, [timerActive, timerRemaining, role, isPresenterAuthenticated, roomCode]);
 
+  // Loop de contagem regressiva para o Jogo de Desenho (Gartic)
+  useEffect(() => {
+    const currentSlide = slides[currentSlideIndex];
+    if (!currentSlide || currentSlide.type !== 'game_drawing_gartic' || !currentSlide.garticConfig) return;
+
+    const gConfig = currentSlide.garticConfig;
+    if (gConfig.roundState === 'drawing' && gConfig.timerActive && gConfig.timerRemaining !== undefined && gConfig.timerRemaining > 0) {
+      const gTimer = setInterval(() => {
+        setSlides((prev) => {
+          const curr = prev[currentSlideIndex];
+          if (!curr || !curr.garticConfig) return prev;
+          const prevTime = curr.garticConfig.timerRemaining ?? 0;
+          if (prevTime > 1) {
+            const nextTime = prevTime - 1;
+            const updated = {
+              ...curr.garticConfig,
+              timerRemaining: nextTime
+            };
+            const copy = [...prev];
+            copy[currentSlideIndex] = { ...curr, garticConfig: updated };
+            return copy;
+          } else {
+            // Tempo esgotado -> Fim da rodada
+            const updated: GarticConfig = {
+              ...curr.garticConfig,
+              timerRemaining: 0,
+              timerActive: false,
+              roundState: 'round_end'
+            };
+            const copy = [...prev];
+            copy[currentSlideIndex] = { ...curr, garticConfig: updated };
+
+            if (role === 'presenter' && isPresenterAuthenticated) {
+              realtimeService.broadcast('SYNC_STATE', roomCode, 'presenter', {
+                currentSlideIndex,
+                slides: copy,
+                participants
+              });
+            }
+            return copy;
+          }
+        });
+      }, 1000);
+
+      return () => clearInterval(gTimer);
+    }
+  }, [currentSlideIndex, slides, role, isPresenterAuthenticated, roomCode]);
+
   // Transmissão de sincronização em lote de estado (heartbeat leve do apresentador)
   useEffect(() => {
     if (role === 'presenter' && isPresenterAuthenticated) {
@@ -460,6 +524,238 @@ export default function App() {
         });
       }
 
+      // 6.1 Gartic Traço Desenhado (Tempo Real)
+      if (msg.type === 'GARTIC_DRAW_STROKE' && msg.payload?.stroke) {
+        const stroke = msg.payload.stroke as GarticStroke;
+        setSlides((prevSlides) => {
+          const current = prevSlides[currentSlideIndex];
+          if (!current || current.type !== 'game_drawing_gartic' || !current.garticConfig) return prevSlides;
+          const updated: GarticConfig = {
+            ...current.garticConfig,
+            strokes: [...(current.garticConfig.strokes || []), stroke]
+          };
+          const copy = [...prevSlides];
+          copy[currentSlideIndex] = { ...current, garticConfig: updated };
+          return copy;
+        });
+      }
+
+      // 6.2 Gartic Limpar Canvas
+      if (msg.type === 'GARTIC_CLEAR_CANVAS') {
+        setSlides((prevSlides) => {
+          const current = prevSlides[currentSlideIndex];
+          if (!current || current.type !== 'game_drawing_gartic' || !current.garticConfig) return prevSlides;
+          const updated: GarticConfig = {
+            ...current.garticConfig,
+            strokes: []
+          };
+          const copy = [...prevSlides];
+          copy[currentSlideIndex] = { ...current, garticConfig: updated };
+          return copy;
+        });
+      }
+
+      // 6.3 Gartic Desfazer Último Traço
+      if (msg.type === 'GARTIC_UNDO_CANVAS') {
+        setSlides((prevSlides) => {
+          const current = prevSlides[currentSlideIndex];
+          if (!current || current.type !== 'game_drawing_gartic' || !current.garticConfig) return prevSlides;
+          const currentStrokes = current.garticConfig.strokes || [];
+          const updated: GarticConfig = {
+            ...current.garticConfig,
+            strokes: currentStrokes.slice(0, -1)
+          };
+          const copy = [...prevSlides];
+          copy[currentSlideIndex] = { ...current, garticConfig: updated };
+          return copy;
+        });
+      }
+
+      // 6.4 Gartic Escolha de Palavra pelo Desenhista
+      if (msg.type === 'GARTIC_CHOOSE_WORD' && msg.payload?.word) {
+        const chosenWord = msg.payload.word as string;
+        setSlides((prevSlides) => {
+          const current = prevSlides[currentSlideIndex];
+          if (!current || current.type !== 'game_drawing_gartic' || !current.garticConfig) return prevSlides;
+          const updated: GarticConfig = {
+            ...current.garticConfig,
+            secretWord: chosenWord,
+            roundState: 'drawing',
+            timerRemaining: current.garticConfig.roundTimeSeconds || 80,
+            timerActive: true,
+            strokes: [],
+            guessedParticipantIds: [],
+            chatGuesses: []
+          };
+          const copy = [...prevSlides];
+          copy[currentSlideIndex] = { ...current, garticConfig: updated };
+          return copy;
+        });
+      }
+
+      // 6.5 Gartic Envio de Palpite (Digital)
+      if (msg.type === 'GARTIC_SUBMIT_GUESS' && msg.payload) {
+        const { participantId, text } = msg.payload;
+        const guesser = participants[participantId];
+        const guesserName = guesser?.name || 'Jogador';
+        const guesserAvatar = guesser?.avatar || '👤';
+
+        setSlides((prevSlides) => {
+          const current = prevSlides[currentSlideIndex];
+          if (!current || current.type !== 'game_drawing_gartic' || !current.garticConfig) return prevSlides;
+          const gConfig = current.garticConfig;
+
+          // Se já acertou ou é o desenhista, ignora
+          if ((gConfig.guessedParticipantIds || []).includes(participantId) || gConfig.currentDrawerId === participantId) {
+            return prevSlides;
+          }
+
+          const evalResult = evaluateGuess(text, gConfig.secretWord);
+          const newGuessId = `guess-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+
+          let newGuessedIds = [...(gConfig.guessedParticipantIds || [])];
+          let updatedScores = { ...(gConfig.scores || {}) };
+          let newChat = [...(gConfig.chatGuesses || [])];
+          let pointsEarned = 0;
+
+          if (evalResult.isCorrect) {
+            // Pontuação por rapidez: 1º ganha 10 pts, 2º ganha 8 pts, 3º ganha 6 pts, demais 5 pts
+            const guessOrder = newGuessedIds.length;
+            pointsEarned = guessOrder === 0 ? 10 : guessOrder === 1 ? 8 : guessOrder === 2 ? 6 : 5;
+            newGuessedIds.push(participantId);
+
+            // Atualiza pontuação do acertador
+            updatedScores[participantId] = (updatedScores[participantId] || 0) + pointsEarned;
+
+            // O desenhista ganha +5 pts a cada acerto
+            if (gConfig.currentDrawerId) {
+              updatedScores[gConfig.currentDrawerId] = (updatedScores[gConfig.currentDrawerId] || 0) + 5;
+            }
+
+            // Atualiza o participante global
+            setParticipants((prev) => {
+              const currentP = prev[participantId];
+              if (!currentP) return prev;
+              const next: Record<string, Participant> = {
+                ...prev,
+                [participantId]: { ...currentP, score: currentP.score + pointsEarned }
+              };
+              if (gConfig.currentDrawerId && next[gConfig.currentDrawerId]) {
+                const drawerP = next[gConfig.currentDrawerId];
+                next[gConfig.currentDrawerId] = { ...drawerP, score: drawerP.score + 5 };
+              }
+              return next;
+            });
+
+            newChat.push({
+              id: newGuessId,
+              participantId,
+              participantName: guesserName,
+              participantAvatar: guesserAvatar,
+              text,
+              isCorrect: true,
+              pointsEarned,
+              timestamp: Date.now()
+            });
+
+            // Verifica se todos adivinharam -> encerra rodada
+            const totalGuessers = Object.values(participants).filter((p) => p.id !== gConfig.currentDrawerId).length;
+            const allGuessed = totalGuessers > 0 && newGuessedIds.length >= totalGuessers;
+
+            // Verifica se alguém atingiu a meta de pontos -> fim de jogo
+            const targetScore = gConfig.targetScore || 120;
+            const winnerEntry = Object.entries(updatedScores).find(([_, sc]) => sc >= targetScore);
+
+            const nextState = winnerEntry
+              ? 'game_over'
+              : allGuessed
+              ? 'round_end'
+              : gConfig.roundState;
+
+            const updatedConfig: GarticConfig = {
+              ...gConfig,
+              guessedParticipantIds: newGuessedIds,
+              scores: updatedScores,
+              chatGuesses: newChat,
+              roundState: nextState,
+              winnerId: winnerEntry ? winnerEntry[0] : undefined,
+              winnerName: winnerEntry ? participants[winnerEntry[0]]?.name : undefined,
+              winnerAvatar: winnerEntry ? participants[winnerEntry[0]]?.avatar : undefined
+            };
+
+            const copy = [...prevSlides];
+            copy[currentSlideIndex] = { ...current, garticConfig: updatedConfig };
+
+            if (role === 'presenter') {
+              realtimeService.broadcast('SYNC_STATE', roomCode, 'presenter', {
+                currentSlideIndex,
+                showAnswers,
+                timerRemaining,
+                timerActive,
+                teams,
+                teamMode,
+                slides: copy,
+                participants
+              });
+            }
+
+            return copy;
+          } else if (evalResult.isClose) {
+            newChat.push({
+              id: newGuessId,
+              participantId,
+              participantName: guesserName,
+              participantAvatar: guesserAvatar,
+              text,
+              isClose: true,
+              timestamp: Date.now()
+            });
+          } else {
+            newChat.push({
+              id: newGuessId,
+              participantId,
+              participantName: guesserName,
+              participantAvatar: guesserAvatar,
+              text,
+              timestamp: Date.now()
+            });
+          }
+
+          const updatedConfig: GarticConfig = {
+            ...gConfig,
+            chatGuesses: newChat.slice(-50)
+          };
+          const copy = [...prevSlides];
+          copy[currentSlideIndex] = { ...current, garticConfig: updatedConfig };
+          return copy;
+        });
+      }
+
+      // 6.6 Gartic Validação Presencial pelo Apresentador
+      if (msg.type === 'GARTIC_IN_PERSON_CORRECT') {
+        setSlides((prevSlides) => {
+          const current = prevSlides[currentSlideIndex];
+          if (!current || current.type !== 'game_drawing_gartic' || !current.garticConfig) return prevSlides;
+          const gConfig = current.garticConfig;
+          const updatedScores = { ...(gConfig.scores || {}) };
+
+          if (gConfig.currentDrawerId) {
+            updatedScores[gConfig.currentDrawerId] = (updatedScores[gConfig.currentDrawerId] || 0) + 10;
+          }
+
+          const copy = [...prevSlides];
+          copy[currentSlideIndex] = {
+            ...current,
+            garticConfig: {
+              ...gConfig,
+              scores: updatedScores,
+              roundState: 'round_end'
+            }
+          };
+          return copy;
+        });
+      }
+
       // 7. Sincronização geral de estado recebida pelo Participante, Projetor ou Co-Apresentador
       if (msg.type === 'SYNC_STATE' && msg.payload) {
         const isFromSelf = Boolean(msg.senderClientId && msg.senderClientId === realtimeService.getClientId());
@@ -557,6 +853,60 @@ export default function App() {
             sessionStorage.setItem(`apresentalive_banned_${roomCode}`, 'true');
           } catch {
             // ignore
+          }
+        }
+      }
+
+      // Reset Geral da Apresentação pelo Apresentador
+      if (msg.type === 'RESET_PRESENTATION') {
+        const isFromSelf = Boolean(msg.senderClientId && msg.senderClientId === realtimeService.getClientId());
+        if (!isFromSelf) {
+          setParticipants({});
+          setAnswersSubmitted({});
+          setImagePins([]);
+          setTermSubmissions([]);
+          setReactions([]);
+          setShowAnswers(false);
+          setTimerActive(false);
+          setTimerRemaining(null);
+          setCurrentSlideIndex(0);
+          setTeams((prev) => prev.map((t) => ({ ...t, score: 0 })));
+          setSlides((prev) =>
+            prev.map((s) => {
+              if (!s.impostorConfig) return s;
+              return {
+                ...s,
+                impostorConfig: {
+                  ...s.impostorConfig,
+                  gameStarted: false,
+                  votingActive: false,
+                  currentRound: 1,
+                  revealState: 'words_shown',
+                  winner: undefined,
+                  votes: {},
+                  agentParticipantIds: [],
+                  impostorParticipantIds: [],
+                  eliminatedParticipantIds: [],
+                  lastEliminatedId: undefined,
+                  lastEliminatedName: undefined,
+                  lastEliminatedAvatar: undefined,
+                  lastEliminatedVotes: undefined,
+                  lastEliminatedWasImpostor: undefined,
+                  revealWordToInvestigators: false
+                }
+              };
+            })
+          );
+          if (localParticipantId) {
+            setLocalParticipantId(null);
+            setLocalParticipant(null);
+            localParticipantRef.current = null;
+            try {
+              sessionStorage.removeItem('apresentalive_participant_id');
+              sessionStorage.removeItem('apresentalive_participant_name');
+            } catch {
+              // ignore
+            }
           }
         }
       }
@@ -1324,6 +1674,289 @@ export default function App() {
     handleStartNewMatch();
   };
 
+  // JOGO DE DESENHO (GARTIC & IMAGEM E AÇÃO) - FUNÇÕES DE CONTROLE
+  const handleUpdateGarticConfig = (patch: Partial<GarticConfig>) => {
+    const currentSlide = slides[currentSlideIndex];
+    if (!currentSlide || currentSlide.type !== 'game_drawing_gartic' || !currentSlide.garticConfig) return;
+
+    const updatedConfig: GarticConfig = {
+      ...currentSlide.garticConfig,
+      ...patch
+    };
+
+    const copy = [...slides];
+    copy[currentSlideIndex] = { ...currentSlide, garticConfig: updatedConfig };
+    setSlides(copy);
+
+    realtimeService.broadcast('SYNC_STATE', roomCode, 'presenter', {
+      currentSlideIndex,
+      showAnswers,
+      timerRemaining,
+      timerActive,
+      teams,
+      teamMode,
+      slides: copy,
+      participants
+    });
+  };
+
+  const handleStartGarticGame = () => {
+    const currentSlide = slides[currentSlideIndex];
+    if (!currentSlide || currentSlide.type !== 'game_drawing_gartic' || !currentSlide.garticConfig) return;
+
+    let currentParts = { ...participants };
+    let participantList = Object.values(currentParts);
+
+    // Se a sala estiver vazia, gera bots simulados para o jogo rodar imediatamente
+    if (participantList.length === 0) {
+      const demoBots = [
+        { id: 'bot-lucas', name: 'Lucas', avatar: '🦁' },
+        { id: 'bot-mariana', name: 'Mariana', avatar: '🦊' },
+        { id: 'bot-pedro', name: 'Pedro', avatar: '🚀' },
+        { id: 'bot-beatriz', name: 'Beatriz', avatar: '🐱' }
+      ];
+      demoBots.forEach((bot) => {
+        currentParts[bot.id] = {
+          id: bot.id,
+          name: bot.name,
+          avatar: bot.avatar,
+          score: 0,
+          connectedAt: Date.now()
+        };
+      });
+      participantList = Object.values(currentParts);
+      setParticipants(currentParts);
+    }
+
+    const config = currentSlide.garticConfig;
+    const catName = config.category || 'Geral & Variados';
+    const catObj = GARTIC_CATEGORIES.find((c) => c.name === catName) || GARTIC_CATEGORIES[0];
+    const customList = config.customWordList;
+    const pool = customList && customList.length > 0 ? customList : catObj.words;
+
+    // Sorteia quem desenha se não estiver definido ou se for random
+    let drawerId = config.currentDrawerId;
+    if (!drawerId || config.selectionMethod === 'random') {
+      const shuffled = [...participantList].sort(() => 0.5 - Math.random());
+      drawerId = shuffled[0]?.id || participantList[0]?.id;
+    }
+
+    const drawerP = participantList.find((p) => p.id === drawerId);
+
+    // Sorteia 3 opções de palavras para o desenhista escolher
+    const shuffledWords = [...pool].sort(() => 0.5 - Math.random());
+    const wordChoices = shuffledWords.slice(0, Math.min(3, shuffledWords.length));
+    const chosenWord = wordChoices[0] || 'Elefante';
+
+    const roundSeconds = config.roundTimeSeconds || 80;
+
+    const updatedConfig: GarticConfig = {
+      ...config,
+      gameStarted: true,
+      currentDrawerId: drawerId,
+      currentDrawerName: drawerP?.name || 'Artista',
+      currentDrawerAvatar: drawerP?.avatar || '🎨',
+      wordChoices,
+      secretWord: chosenWord,
+      roundState: 'drawing',
+      timerRemaining: roundSeconds,
+      timerActive: true,
+      currentRound: 1,
+      strokes: [],
+      guessedParticipantIds: [],
+      chatGuesses: [],
+      scores: config.scores || {}
+    };
+
+    const copy = [...slides];
+    copy[currentSlideIndex] = { ...currentSlide, garticConfig: updatedConfig };
+    setSlides(copy);
+
+    realtimeService.broadcast('SYNC_STATE', roomCode, 'presenter', {
+      currentSlideIndex,
+      showAnswers,
+      timerRemaining: roundSeconds,
+      timerActive: true,
+      teams,
+      teamMode,
+      slides: copy,
+      participants: currentParts
+    });
+  };
+
+  const handleAdvanceGarticNextRound = () => {
+    const currentSlide = slides[currentSlideIndex];
+    if (!currentSlide || currentSlide.type !== 'game_drawing_gartic' || !currentSlide.garticConfig) return;
+
+    const config = currentSlide.garticConfig;
+    const participantList = Object.values(participants);
+    const catName = config.category || 'Geral & Variados';
+    const catObj = GARTIC_CATEGORIES.find((c) => c.name === catName) || GARTIC_CATEGORIES[0];
+    const customList = config.customWordList;
+    const pool = customList && customList.length > 0 ? customList : catObj.words;
+
+    // Próximo desenhista da fila
+    const currentIdx = participantList.findIndex((p) => p.id === config.currentDrawerId);
+    const nextDrawerP = participantList.length > 0
+      ? participantList[(currentIdx + 1) % participantList.length]
+      : undefined;
+
+    const shuffledWords = [...pool].sort(() => 0.5 - Math.random());
+    const wordChoices = shuffledWords.slice(0, Math.min(3, shuffledWords.length));
+    const chosenWord = wordChoices[0] || 'Bicicleta';
+    const roundSeconds = config.roundTimeSeconds || 80;
+
+    const updatedConfig: GarticConfig = {
+      ...config,
+      currentDrawerId: nextDrawerP?.id || config.currentDrawerId,
+      currentDrawerName: nextDrawerP?.name || config.currentDrawerName,
+      currentDrawerAvatar: nextDrawerP?.avatar || config.currentDrawerAvatar,
+      wordChoices,
+      secretWord: chosenWord,
+      roundState: 'drawing',
+      timerRemaining: roundSeconds,
+      timerActive: true,
+      currentRound: (config.currentRound || 1) + 1,
+      strokes: [],
+      guessedParticipantIds: [],
+      chatGuesses: []
+    };
+
+    const copy = [...slides];
+    copy[currentSlideIndex] = { ...currentSlide, garticConfig: updatedConfig };
+    setSlides(copy);
+
+    realtimeService.broadcast('SYNC_STATE', roomCode, 'presenter', {
+      currentSlideIndex,
+      showAnswers,
+      timerRemaining: roundSeconds,
+      timerActive: true,
+      teams,
+      teamMode,
+      slides: copy,
+      participants
+    });
+  };
+
+  const handleResetGarticGame = () => {
+    const currentSlide = slides[currentSlideIndex];
+    if (!currentSlide || currentSlide.type !== 'game_drawing_gartic' || !currentSlide.garticConfig) return;
+
+    const updatedConfig: GarticConfig = {
+      ...currentSlide.garticConfig,
+      gameStarted: false,
+      roundState: 'lobby',
+      currentRound: 1,
+      strokes: [],
+      guessedParticipantIds: [],
+      chatGuesses: [],
+      scores: {},
+      winnerId: undefined,
+      winnerName: undefined,
+      winnerAvatar: undefined
+    };
+
+    const copy = [...slides];
+    copy[currentSlideIndex] = { ...currentSlide, garticConfig: updatedConfig };
+    setSlides(copy);
+
+    realtimeService.broadcast('SYNC_STATE', roomCode, 'presenter', {
+      currentSlideIndex,
+      showAnswers,
+      timerRemaining: null,
+      timerActive: false,
+      teams,
+      teamMode,
+      slides: copy,
+      participants
+    });
+  };
+
+  const handleGarticDrawStroke = (stroke: GarticStroke) => {
+    const currentSlide = slides[currentSlideIndex];
+    if (!currentSlide || currentSlide.type !== 'game_drawing_gartic' || !currentSlide.garticConfig) return;
+
+    setSlides((prev) => {
+      const curr = prev[currentSlideIndex];
+      if (!curr || !curr.garticConfig) return prev;
+      const copy = [...prev];
+      copy[currentSlideIndex] = {
+        ...curr,
+        garticConfig: {
+          ...curr.garticConfig,
+          strokes: [...(curr.garticConfig.strokes || []), stroke]
+        }
+      };
+      return copy;
+    });
+
+    realtimeService.broadcast('GARTIC_DRAW_STROKE', roomCode, localParticipantId || 'presenter', {
+      stroke
+    });
+  };
+
+  const handleGarticClearCanvas = () => {
+    setSlides((prev) => {
+      const curr = prev[currentSlideIndex];
+      if (!curr || !curr.garticConfig) return prev;
+      const copy = [...prev];
+      copy[currentSlideIndex] = {
+        ...curr,
+        garticConfig: {
+          ...curr.garticConfig,
+          strokes: []
+        }
+      };
+      return copy;
+    });
+
+    realtimeService.broadcast('GARTIC_CLEAR_CANVAS', roomCode, localParticipantId || 'presenter', {});
+  };
+
+  const handleGarticUndoCanvas = () => {
+    setSlides((prev) => {
+      const curr = prev[currentSlideIndex];
+      if (!curr || !curr.garticConfig) return prev;
+      const currentStrokes = curr.garticConfig.strokes || [];
+      const copy = [...prev];
+      copy[currentSlideIndex] = {
+        ...curr,
+        garticConfig: {
+          ...curr.garticConfig,
+          strokes: currentStrokes.slice(0, -1)
+        }
+      };
+      return copy;
+    });
+
+    realtimeService.broadcast('GARTIC_UNDO_CANVAS', roomCode, localParticipantId || 'presenter', {});
+  };
+
+  const handleGarticSubmitGuess = (guessText: string) => {
+    const pId = localParticipantId || presenterParticipantId;
+    realtimeService.broadcast('GARTIC_SUBMIT_GUESS', roomCode, pId, {
+      participantId: pId,
+      text: guessText
+    });
+  };
+
+  const handleGarticChooseWord = (word: string) => {
+    realtimeService.broadcast('GARTIC_CHOOSE_WORD', roomCode, localParticipantId || 'presenter', {
+      word
+    });
+  };
+
+  const handleGarticInPersonCorrect = (participantId?: string) => {
+    const targetId = participantId || (localParticipantId || presenterParticipantId);
+    realtimeService.broadcast('GARTIC_IN_PERSON_CORRECT', roomCode, 'presenter', {
+      participantId: targetId
+    });
+  };
+
+  const handleGarticInPersonSkip = () => {
+    handleAdvanceGarticNextRound();
+  };
+
   // Identificador do apresentador quando joga junto
   const presenterParticipantId = `presenter-player-${roomCode}`;
 
@@ -1507,7 +2140,7 @@ export default function App() {
     setAppView(target);
   };
 
-  const handleLoadSavedRoom = (room: SavedRoom) => {
+  const applyLoadSavedRoom = (room: SavedRoom) => {
     setRoomCode(room.roomCode);
     setRoomTitle(room.roomTitle);
     setPresenterPassword(room.presenterPassword);
@@ -1518,6 +2151,168 @@ export default function App() {
     setCurrentSlideIndex(0);
     storageService.setActiveRoomCode(room.roomCode);
   };
+
+  const handleLoadSavedRoom = (room: SavedRoom) => {
+    const prevSession = storageService.getSavedSession(room.roomCode);
+    if (prevSession && prevSession.hasSessionData) {
+      setPendingResumeSession({
+        roomCode: room.roomCode,
+        roomTitle: room.roomTitle,
+        session: prevSession,
+        targetView: appView === 'portal' ? 'presenter' : appView,
+        pendingRoomData: room
+      });
+      return;
+    }
+    applyLoadSavedRoom(room);
+  };
+
+  const handleResetPresentation = (targetCode?: string) => {
+    const codeToReset = targetCode || roomCode;
+
+    // 1. Zera participantes e respostas
+    setParticipants({});
+    setAnswersSubmitted({});
+    setImagePins([]);
+    setTermSubmissions([]);
+    setReactions([]);
+    setShowAnswers(false);
+    setTimerActive(false);
+    setTimerRemaining(null);
+    setCurrentSlideIndex(0);
+
+    // 2. Zera pontuações dos times
+    setTeams((prev) => prev.map((t) => ({ ...t, score: 0 })));
+
+    // 3. Reseta configurações de jogos e sorteios nos slides (ex: Infiltrado)
+    setSlides((prev) =>
+      prev.map((s) => {
+        let copy = { ...s };
+        if (copy.impostorConfig) {
+          copy.impostorConfig = {
+            ...copy.impostorConfig,
+            gameStarted: false,
+            votingActive: false,
+            currentRound: 1,
+            revealState: 'words_shown',
+            winner: undefined,
+            votes: {},
+            agentParticipantIds: [],
+            impostorParticipantIds: [],
+            eliminatedIds: [],
+            lastEliminatedId: undefined,
+            lastEliminatedName: undefined,
+            lastEliminatedAvatar: undefined,
+            lastEliminatedVotes: undefined,
+            lastEliminatedWasImpostor: undefined,
+            revealWordToInvestigators: false
+          };
+        }
+        return copy;
+      })
+    );
+
+    // 4. Limpa sessão persistida
+    storageService.clearSavedSession(codeToReset);
+
+    // 5. Notifica todos os participantes conectados e 2ª tela via realtime
+    realtimeService.broadcast('RESET_PRESENTATION', codeToReset, 'presenter', {
+      roomCode: codeToReset,
+      timestamp: Date.now()
+    });
+
+    realtimeService.broadcast('SYNC_STATE', codeToReset, 'presenter', {
+      currentSlideIndex: 0,
+      showAnswers: false,
+      timerActive: false,
+      timerRemaining: null,
+      participantsCount: 0,
+      answersCount: 0
+    });
+  };
+
+  const handleConfirmResumeSession = () => {
+    if (!pendingResumeSession) return;
+    const { session, targetView, pendingRoomData, pendingPresentation } = pendingResumeSession;
+
+    if (pendingRoomData) {
+      applyLoadSavedRoom(pendingRoomData);
+    } else if (pendingPresentation) {
+      setRoomTitle(pendingPresentation.title);
+      if (pendingPresentation.slides && pendingPresentation.slides.length > 0) {
+        setSlides(pendingPresentation.slides);
+      }
+    }
+
+    // Retoma elementos da última sessão
+    if (session.participants && Object.keys(session.participants).length > 0) {
+      setParticipants(session.participants);
+    }
+    if (session.answersSubmitted) {
+      setAnswersSubmitted(session.answersSubmitted);
+    }
+    if (session.imagePins && session.imagePins.length > 0) {
+      setImagePins(session.imagePins);
+    }
+    if (session.termSubmissions && session.termSubmissions.length > 0) {
+      setTermSubmissions(session.termSubmissions);
+    }
+    if (session.teams && session.teams.length > 0) {
+      setTeams(session.teams);
+    }
+    if (session.teamMode) {
+      setTeamMode(session.teamMode);
+    }
+    if (typeof session.currentSlideIndex === 'number') {
+      setCurrentSlideIndex(session.currentSlideIndex);
+    }
+
+    setAppView(targetView);
+    setPendingResumeSession(null);
+  };
+
+  const handleConfirmStartNewPresentation = () => {
+    if (!pendingResumeSession) return;
+    const { roomCode: targetCode, targetView, pendingRoomData, pendingPresentation } = pendingResumeSession;
+
+    if (pendingRoomData) {
+      applyLoadSavedRoom(pendingRoomData);
+    } else if (pendingPresentation) {
+      setRoomTitle(pendingPresentation.title);
+      if (pendingPresentation.slides && pendingPresentation.slides.length > 0) {
+        setSlides(pendingPresentation.slides);
+      }
+    }
+
+    // Reseta participantes, pontuações, sorteios, estatísticas, tudo
+    handleResetPresentation(targetCode);
+
+    setAppView(targetView);
+    setPendingResumeSession(null);
+  };
+
+  // Persistência automática da sessão ativa
+  useEffect(() => {
+    if (!roomCode || appView === 'portal') return;
+    const pCount = Object.keys(participants).length;
+    const aCount = Object.keys(answersSubmitted).length;
+    const pinsCount = imagePins.length;
+    const termsCount = termSubmissions.length;
+    if (pCount > 0 || aCount > 0 || pinsCount > 0 || termsCount > 0 || currentSlideIndex > 0) {
+      storageService.saveSession({
+        roomCode,
+        roomTitle,
+        currentSlideIndex,
+        participants,
+        answersSubmitted,
+        imagePins,
+        termSubmissions,
+        teams,
+        teamMode,
+        slides
+      });
+    }
+  }, [roomCode, roomTitle, currentSlideIndex, participants, answersSubmitted, imagePins, termSubmissions, teams, teamMode, slides, appView]);
 
   const handleCreateNewRoom = (title: string, pin: string, password: string, rPassword?: string) => {
     const defaultSlide = createDefaultSlide('content_cover', 0);
@@ -1621,20 +2416,59 @@ export default function App() {
             storageService.setActiveRoomCode(data.roomCode);
           }}
           onOpenAdminLogin={(pin) => {
+            let targetTitle = roomTitle;
+            const targetPin = pin || roomCode;
             if (pin) {
               setRoomCode(pin);
               const saved = storageService.getSavedRoom(pin);
               if (saved) {
+                targetTitle = saved.roomTitle;
                 setRoomTitle(saved.roomTitle);
                 setPresenterPassword(saved.presenterPassword);
                 setRoomPassword(saved.roomPassword);
                 if (saved.slides && saved.slides.length > 0) setSlides(saved.slides);
               }
             }
-            setPendingTargetView('presenter');
-            setIsLoginModalOpen(true);
+            if (isPresenterAuthenticated) {
+              const prevSession = storageService.getSavedSession(targetPin);
+              if (prevSession && prevSession.hasSessionData) {
+                setPendingResumeSession({
+                  roomCode: targetPin,
+                  roomTitle: targetTitle,
+                  session: prevSession,
+                  targetView: 'presenter'
+                });
+              } else {
+                setAppView('presenter');
+              }
+            } else {
+              setPendingTargetView('presenter');
+              setIsLoginModalOpen(true);
+            }
           }}
           onProjectRoom={(pin) => {
+            let targetTitle = roomTitle;
+            if (pin) {
+              setRoomCode(pin);
+              const saved = storageService.getSavedRoom(pin);
+              if (saved) {
+                targetTitle = saved.roomTitle;
+                setRoomTitle(saved.roomTitle);
+                setPresenterPassword(saved.presenterPassword);
+                setRoomPassword(saved.roomPassword);
+                if (saved.slides && saved.slides.length > 0) setSlides(saved.slides);
+              }
+              const prevSession = storageService.getSavedSession(pin);
+              if (prevSession && prevSession.hasSessionData) {
+                setPendingResumeSession({
+                  roomCode: pin,
+                  roomTitle: targetTitle,
+                  session: prevSession,
+                  targetView: 'presentation'
+                });
+                return;
+              }
+            }
             handleOpenProjectorWindow(pin);
           }}
         />
@@ -1649,9 +2483,31 @@ export default function App() {
           onSuccess={() => {
             setIsPresenterAuthenticated(true);
             setRole('presenter');
-            setAppView(pendingTargetView || 'presenter');
+            const target = pendingTargetView || 'presenter';
             setPendingTargetView(null);
+
+            const prevSession = storageService.getSavedSession(roomCode);
+            if (prevSession && prevSession.hasSessionData) {
+              setPendingResumeSession({
+                roomCode,
+                roomTitle,
+                session: prevSession,
+                targetView: target
+              });
+            } else {
+              setAppView(target);
+            }
           }}
+        />
+
+        <ResumePresentationModal
+          isOpen={Boolean(pendingResumeSession)}
+          roomCode={pendingResumeSession?.roomCode || ''}
+          presentationTitle={pendingResumeSession?.roomTitle || ''}
+          session={pendingResumeSession?.session || null}
+          onResume={handleConfirmResumeSession}
+          onStartNew={handleConfirmStartNewPresentation}
+          onCancel={() => setPendingResumeSession(null)}
         />
       </>
     );
@@ -1866,6 +2722,12 @@ export default function App() {
             onAdvanceToNextRound={handleAdvanceToNextRound}
             onStartNewMatch={handleStartNewMatch}
             onToggleRevealWordToInvestigators={handleToggleRevealWordToInvestigators}
+            onStartGarticGame={handleStartGarticGame}
+            onUpdateGarticConfig={handleUpdateGarticConfig}
+            onAdvanceGarticNextRound={handleAdvanceGarticNextRound}
+            onResetGarticGame={handleResetGarticGame}
+            onGarticInPersonCorrect={handleGarticInPersonCorrect}
+            onGarticInPersonSkip={handleGarticInPersonSkip}
           />
         )}
 
@@ -1948,6 +2810,12 @@ export default function App() {
               presenterPlayerAvatar={presenterPlayerAvatar}
               onChangePresenterPlayerAvatar={handleChangePresenterPlayerAvatar}
               coPresentersCount={coPresentersCount}
+              onStartGarticGame={handleStartGarticGame}
+              onUpdateGarticConfig={handleUpdateGarticConfig}
+              onAdvanceGarticNextRound={handleAdvanceGarticNextRound}
+              onResetGarticGame={handleResetGarticGame}
+              onGarticInPersonCorrect={handleGarticInPersonCorrect}
+              onGarticInPersonSkip={handleGarticInPersonSkip}
             />
           )
         )}
@@ -1989,6 +2857,7 @@ export default function App() {
               onSelectSlide={setCurrentSlideIndex}
               onUpdateSlides={handleUpdateSlides}
               onStartPresentation={() => setAppView('presentation')}
+              onResetPresentation={handleResetPresentation}
               roomCode={roomCode}
               roomTitle={roomTitle}
               presenterPassword={presenterPassword}
@@ -1999,8 +2868,21 @@ export default function App() {
               onLoadSavedRoom={handleLoadSavedRoom}
               onCreateNewRoom={handleCreateNewRoom}
               onLoadPresentation={(pres) => {
+                const matchingRoom = storageService.getSavedRooms().find((r) => r.roomTitle === pres.title);
+                const checkPin = matchingRoom ? matchingRoom.roomCode : roomCode;
+                const prevSession = storageService.getSavedSession(checkPin);
+                if (prevSession && prevSession.hasSessionData) {
+                  setPendingResumeSession({
+                    roomCode: checkPin,
+                    roomTitle: pres.title,
+                    session: prevSession,
+                    targetView: 'settings',
+                    pendingPresentation: pres
+                  });
+                  return;
+                }
                 setRoomTitle(pres.title);
-                setSlides(pres.slides);
+                if (pres.slides && pres.slides.length > 0) setSlides(pres.slides);
                 setCurrentSlideIndex(0);
               }}
             />
@@ -2071,6 +2953,25 @@ export default function App() {
               onAdvanceToNextRound={handleAdvanceToNextRound}
               onStartNewMatch={handleStartNewMatch}
               onToggleRevealWordToInvestigators={handleToggleRevealWordToInvestigators}
+              onDrawStroke={(stroke) => {
+                realtimeService.broadcast('GARTIC_DRAW_STROKE', roomCode, currentLocalParticipant.id, { stroke });
+              }}
+              onClearCanvas={() => {
+                realtimeService.broadcast('GARTIC_CLEAR_CANVAS', roomCode, currentLocalParticipant.id, {});
+              }}
+              onUndoCanvas={() => {
+                realtimeService.broadcast('GARTIC_UNDO_CANVAS', roomCode, currentLocalParticipant.id, {});
+              }}
+              onSubmitGarticGuess={(text) => {
+                realtimeService.broadcast('GARTIC_SUBMIT_GUESS', roomCode, currentLocalParticipant.id, {
+                  participantId: currentLocalParticipant.id,
+                  text
+                });
+              }}
+              onChooseGarticWord={(word) => {
+                realtimeService.broadcast('GARTIC_CHOOSE_WORD', roomCode, currentLocalParticipant.id, { word });
+              }}
+              onStartGarticGame={handleStartGarticGame}
             />
           )
         )}
@@ -2087,8 +2988,20 @@ export default function App() {
         onSuccess={() => {
           setIsPresenterAuthenticated(true);
           setRole('presenter');
-          setAppView(pendingTargetView || 'presenter');
+          const target = pendingTargetView || 'presenter';
           setPendingTargetView(null);
+
+          const prevSession = storageService.getSavedSession(roomCode);
+          if (prevSession && prevSession.hasSessionData) {
+            setPendingResumeSession({
+              roomCode,
+              roomTitle,
+              session: prevSession,
+              targetView: target
+            });
+          } else {
+            setAppView(target);
+          }
         }}
       />
 
@@ -2101,6 +3014,16 @@ export default function App() {
         onUpdateTeams={setTeams}
         participants={Object.values(participants)}
         onUpdateParticipants={setParticipants}
+      />
+
+      <ResumePresentationModal
+        isOpen={Boolean(pendingResumeSession)}
+        roomCode={pendingResumeSession?.roomCode || ''}
+        presentationTitle={pendingResumeSession?.roomTitle || ''}
+        session={pendingResumeSession?.session || null}
+        onResume={handleConfirmResumeSession}
+        onStartNew={handleConfirmStartNewPresentation}
+        onCancel={() => setPendingResumeSession(null)}
       />
     </div>
   );

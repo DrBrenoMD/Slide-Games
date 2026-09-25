@@ -5,6 +5,8 @@ import { storageService, SavedRoom } from '../../services/storage';
 import { useAuth } from '../../context/AuthContext';
 import { UserAuthBar } from '../common/UserAuthBar';
 import { CloudLibraryModal } from '../common/CloudLibraryModal';
+import { ResumePresentationModal } from '../common/ResumePresentationModal';
+import { SavedPresentationSession } from '../../services/storage';
 import {
   Gamepad2,
   Sparkles,
@@ -69,6 +71,12 @@ export const HomePortal: React.FC<HomePortalProps> = ({
   const [deleteConfirmPin, setDeleteConfirmPin] = useState<string | null>(null);
   const [deleteConfirmPresId, setDeleteConfirmPresId] = useState<string | null>(null);
   const [isLibraryModalOpen, setIsLibraryModalOpen] = useState(false);
+  const [pendingResume, setPendingResume] = useState<{
+    pres: SavedPresentation;
+    pin: string;
+    existingRoom?: SavedRoom;
+    session: SavedPresentationSession;
+  } | null>(null);
 
   // Formulário de Criação de Sala
   const generateRandomPin = () => {
@@ -218,14 +226,33 @@ export const HomePortal: React.FC<HomePortalProps> = ({
     }
   };
 
-  const handleHostCloudPres = (pres: SavedPresentation) => {
-    const pin = generateRandomPin();
+  const startRoomWithPresentation = (pres: SavedPresentation, pin: string, existingRoom?: SavedRoom) => {
     onCreateRoom({
       roomCode: pin,
       roomTitle: pres.title,
-      adminPassword: '1234',
+      adminPassword: existingRoom?.presenterPassword || '1234',
       slides: pres.slides || []
     });
+  };
+
+  const handleHostCloudPres = (pres: SavedPresentation) => {
+    const existingRoom = savedRooms.find((r) => r.roomTitle === pres.title);
+    const pin = existingRoom ? existingRoom.roomCode : generateRandomPin();
+
+    if (storageService.hasPreviousSession(pin)) {
+      const session = storageService.getSavedSession(pin);
+      if (session && session.hasSessionData) {
+        setPendingResume({
+          pres,
+          pin,
+          existingRoom,
+          session
+        });
+        return;
+      }
+    }
+
+    startRoomWithPresentation(pres, pin, existingRoom);
   };
 
   return (
@@ -989,6 +1016,27 @@ export const HomePortal: React.FC<HomePortalProps> = ({
         onCreateNewPresentation={() => {
           if (onCreateBlankPresentation) onCreateBlankPresentation();
         }}
+      />
+
+      <ResumePresentationModal
+        isOpen={Boolean(pendingResume)}
+        roomCode={pendingResume?.pin || ''}
+        presentationTitle={pendingResume?.pres.title || ''}
+        session={pendingResume?.session || null}
+        onResume={() => {
+          if (pendingResume) {
+            startRoomWithPresentation(pendingResume.pres, pendingResume.pin, pendingResume.existingRoom);
+            setPendingResume(null);
+          }
+        }}
+        onStartNew={() => {
+          if (pendingResume) {
+            storageService.clearSavedSession(pendingResume.pin);
+            startRoomWithPresentation(pendingResume.pres, pendingResume.pin, pendingResume.existingRoom);
+            setPendingResume(null);
+          }
+        }}
+        onCancel={() => setPendingResume(null)}
       />
 
       {/* Bottom Footer */}

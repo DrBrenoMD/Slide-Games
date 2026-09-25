@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Slide, Participant, Team, ImagePinSubmission, TermSubmission, LiveReaction, ImpostorConfig } from '../../types';
+import { Slide, Participant, Team, ImagePinSubmission, TermSubmission, LiveReaction, ImpostorConfig, GarticConfig } from '../../types';
 import { MotionSlideContainer } from '../motion/MotionSlideContainer';
 import { LiveReactionsOverlay } from '../motion/LiveReactionsOverlay';
 import { PodiumPod } from '../motion/PodiumPod';
@@ -10,6 +10,7 @@ import { TermSprintSlideRenderer } from '../slides/TermSprintSlideRenderer';
 import { ImagePinSlideRenderer } from '../slides/ImagePinSlideRenderer';
 import { WordCloudSlideRenderer } from '../slides/WordCloudSlideRenderer';
 import { ImpostorSlideRenderer } from '../slides/ImpostorSlideRenderer';
+import { GarticSlideRenderer } from '../slides/GarticSlideRenderer';
 import { ThemeVisualDecorator } from '../themes/ThemeVisualDecorator';
 import { getComputedThemeStyles } from '../../utils/themeStyles';
 import { AnimatedSlideElementsOverlay } from '../slides/AnimatedSlideElementsOverlay';
@@ -52,6 +53,12 @@ interface PresentationPlayerProps {
   onAdvanceToNextRound?: (changeWord?: boolean) => void;
   onStartNewMatch?: () => void;
   onToggleRevealWordToInvestigators?: () => void;
+  onStartGarticGame?: () => void;
+  onUpdateGarticConfig?: (config: Partial<GarticConfig>) => void;
+  onAdvanceGarticNextRound?: () => void;
+  onResetGarticGame?: () => void;
+  onGarticInPersonCorrect?: (participantId?: string) => void;
+  onGarticInPersonSkip?: () => void;
 }
 
 export const PresentationPlayer: React.FC<PresentationPlayerProps> = ({
@@ -90,7 +97,13 @@ export const PresentationPlayer: React.FC<PresentationPlayerProps> = ({
   onResetImpostorGame,
   onAdvanceToNextRound,
   onStartNewMatch,
-  onToggleRevealWordToInvestigators
+  onToggleRevealWordToInvestigators,
+  onStartGarticGame,
+  onUpdateGarticConfig,
+  onAdvanceGarticNextRound,
+  onResetGarticGame,
+  onGarticInPersonCorrect,
+  onGarticInPersonSkip
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const currentSlide = slides[currentSlideIndex] || slides[0];
@@ -213,6 +226,21 @@ export const PresentationPlayer: React.FC<PresentationPlayerProps> = ({
             onStartImpostorGame={onStartImpostorGame}
             onAddSimulatedParticipants={onAddSimulatedParticipants}
             onToggleRevealWordToInvestigators={onToggleRevealWordToInvestigators}
+            isPresenter={!isProjectorOnly}
+          />
+        );
+
+      case 'game_drawing_gartic':
+        return (
+          <GarticSlideRenderer
+            slide={currentSlide}
+            participants={participants}
+            onStartGarticGame={onStartGarticGame}
+            onUpdateGarticConfig={onUpdateGarticConfig || (() => {})}
+            onAdvanceToNextRound={onAdvanceGarticNextRound}
+            onResetGame={onResetGarticGame}
+            onInPersonCorrect={onGarticInPersonCorrect}
+            onInPersonSkip={onGarticInPersonSkip}
             isPresenter={!isProjectorOnly}
           />
         );

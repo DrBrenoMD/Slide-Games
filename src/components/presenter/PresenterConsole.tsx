@@ -4,12 +4,16 @@ import {
   Participant,
   Team,
   ImpostorConfig,
+  GarticConfig,
+  GarticStroke,
   ImagePinSubmission,
   TermSubmission
 } from '../../types';
 import { PRESET_WORD_CATEGORIES } from '../../data/presetWords';
+import { GARTIC_CATEGORIES } from '../../data/garticPresets';
 import { AgentSelectorModal } from '../slides/AgentSelectorModal';
 import { PresentationPlayer } from './PresentationPlayer';
+import { DrawingViewer } from '../common/DrawingViewer';
 import { useAuth } from '../../context/AuthContext';
 import { UserAuthBar } from '../common/UserAuthBar';
 import {
@@ -38,7 +42,11 @@ import {
   Gamepad2,
   Crown,
   Check,
-  AlertCircle
+  AlertCircle,
+  Paintbrush,
+  CheckCircle2,
+  Flame,
+  ArrowRight
 } from 'lucide-react';
 
 interface PresenterConsoleProps {
@@ -83,6 +91,12 @@ interface PresenterConsoleProps {
   presenterPlayerAvatar?: string;
   onChangePresenterPlayerAvatar?: (avatar: string) => void;
   coPresentersCount?: number;
+  onStartGarticGame?: () => void;
+  onUpdateGarticConfig?: (config: Partial<GarticConfig>) => void;
+  onAdvanceGarticNextRound?: () => void;
+  onResetGarticGame?: () => void;
+  onGarticInPersonCorrect?: (participantId?: string) => void;
+  onGarticInPersonSkip?: () => void;
 }
 
 export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
@@ -126,7 +140,13 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
   onChangePresenterPlayerName,
   presenterPlayerAvatar = '👑',
   onChangePresenterPlayerAvatar,
-  coPresentersCount = 1
+  coPresentersCount = 1,
+  onStartGarticGame,
+  onUpdateGarticConfig,
+  onAdvanceGarticNextRound,
+  onResetGarticGame,
+  onGarticInPersonCorrect,
+  onGarticInPersonSkip
 }) => {
   const currentSlide = slides[currentSlideIndex] || slides[0];
   const { user, savePresentationToCloud, loginWithGoogle } = useAuth();
@@ -239,6 +259,70 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
 
   const isImpostorSlide = currentSlide.type.startsWith('game_impostor');
   const isInvestigatorMode = impostorConfig.mode === 'investigator';
+
+  // Jogo de Desenho (Gartic & Imagem e Ação)
+  const isGarticSlide = currentSlide.type === 'game_drawing_gartic';
+  const garticConfig: GarticConfig = currentSlide.garticConfig || {
+    gameStarted: false,
+    mode: 'digital',
+    category: 'Geral & Variados',
+    secretWord: '',
+    wordChoices: [],
+    selectionMethod: 'random',
+    targetScore: 120,
+    roundTimeSeconds: 80,
+    currentRound: 1,
+    roundState: 'lobby',
+    strokes: [],
+    guessedParticipantIds: [],
+    chatGuesses: [],
+    scores: {}
+  };
+
+  const garticDrawer = participants.find((p) => p.id === garticConfig.currentDrawerId);
+  const garticDrawerName = garticDrawer?.name || garticConfig.currentDrawerName || 'Artista';
+
+  // Sorteio de palavras para escolha do desenhista
+  const getGarticWordOptions = (categoryName: string, count: number = 3): string[] => {
+    const cat = GARTIC_CATEGORIES.find((c) => c.name === categoryName) || GARTIC_CATEGORIES[0];
+    const customList = garticConfig.customWordList;
+    const pool = customList && customList.length > 0 ? customList : cat.words;
+    const shuffled = [...pool].sort(() => 0.5 - Math.random());
+    return shuffled.slice(0, Math.min(count, shuffled.length));
+  };
+
+  const handleStartGartic = () => {
+    if (onStartGarticGame) {
+      onStartGarticGame();
+      return;
+    }
+
+    let currentParts = [...participants];
+    if (currentParts.length === 0 && onAddSimulatedParticipants) {
+      onAddSimulatedParticipants();
+      return;
+    }
+
+    const drawerId = garticConfig.currentDrawerId || (currentParts.length > 0 ? currentParts[Math.floor(Math.random() * currentParts.length)].id : undefined);
+    const wordOptions = getGarticWordOptions(garticConfig.category || 'Geral & Variados', 3);
+    const chosenWord = wordOptions[0] || 'Elefante';
+
+    if (onUpdateGarticConfig) {
+      onUpdateGarticConfig({
+        gameStarted: true,
+        currentDrawerId: drawerId,
+        wordChoices: wordOptions,
+        secretWord: chosenWord,
+        roundState: 'drawing',
+        strokes: [],
+        guessedParticipantIds: [],
+        chatGuesses: [],
+        timerRemaining: garticConfig.roundTimeSeconds || 80,
+        timerActive: true,
+        currentRound: 1
+      });
+    }
+  };
 
   // Identificar agentes e infiltrados
   const agentParticipants = participants.filter((p) =>
@@ -1575,8 +1659,19 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
                         </button>
                       </>
                     ) : (
-                      <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-500/40 text-xs font-bold text-amber-300 w-full">
-                        {impostorConfig.winner === 'impostors' ? '🚨 Vitória dos Infiltrados! As rodadas acabaram ou os agentes foram eliminados.' : '🛡️ Vitória dos Agentes! Todos os infiltrados foram eliminados.'}
+                      <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/20 via-indigo-500/20 to-purple-500/20 border-2 border-amber-400/60 text-xs text-center w-full space-y-1">
+                        <span className="font-extrabold uppercase tracking-wider text-amber-300 block">
+                          🏁 Partida Encerrada • Palavra Secreta Revelada
+                        </span>
+                        <span className="text-xl sm:text-2xl font-black text-amber-300 font-display block">
+                          {impostorConfig.secretWord}
+                        </span>
+                        <span className="text-slate-300 text-[11px] block">
+                          Categoria: <strong className="text-white">{impostorConfig.category || 'Geral'}</strong>
+                        </span>
+                        <span className="font-bold text-xs inline-block mt-1">
+                          {impostorConfig.winner === 'impostors' ? '🚨 Vitória dos Infiltrados! As rodadas acabaram ou os agentes foram eliminados.' : '🛡️ Vitória dos Agentes! Todos os infiltrados foram eliminados.'}
+                        </span>
                       </div>
                     )}
 
@@ -1679,8 +1774,353 @@ export const PresenterConsole: React.FC<PresenterConsoleProps> = ({
           </div>
         )}
 
+        {/* JOGO DE DESENHO (GARTIC & IMAGEM E AÇÃO): PAINEL DO APRESENTADOR */}
+        {isGarticSlide && (
+          <div className="space-y-6">
+            {/* Header com Badges e Informações */}
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-indigo-600 flex items-center justify-center text-2xl shadow-lg">
+                    🎨
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-black uppercase tracking-wider">
+                        Jogo de Desenho
+                      </span>
+                      <span className="text-xs text-slate-400 font-mono">
+                        Rodada {garticConfig.currentRound || 1} • Meta: {garticConfig.targetScore || 120} pts
+                      </span>
+                    </div>
+                    <h4 className="text-xl font-black text-white font-display mt-0.5">
+                      {garticConfig.mode === 'digital' ? 'Modo Digital (Gartic)' : 'Modo Presencial (Imagem & Ação)'}
+                    </h4>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className={`px-3 py-1 rounded-xl text-xs font-bold border ${
+                    garticConfig.roundState === 'drawing'
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 animate-pulse'
+                      : garticConfig.roundState === 'choosing_word'
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                      : garticConfig.roundState === 'round_end'
+                      ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
+                      : 'bg-slate-800 text-slate-400 border-slate-700'
+                  }`}>
+                    {garticConfig.roundState === 'drawing'
+                      ? '✏️ Desenhando ao Vivo'
+                      : garticConfig.roundState === 'choosing_word'
+                      ? '⏳ Escolhendo Palavra'
+                      : garticConfig.roundState === 'round_end'
+                      ? '🏁 Fim de Rodada'
+                      : garticConfig.roundState === 'game_over'
+                      ? '🏆 Fim de Jogo'
+                      : 'Aguardando Início'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Seletor de Modo (Digital vs Presencial) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-1.5 bg-slate-950 rounded-2xl border border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => onUpdateGarticConfig?.({ mode: 'digital' })}
+                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                    garticConfig.mode === 'digital'
+                      ? 'bg-amber-950/40 border-amber-500 text-white shadow ring-1 ring-amber-500/40'
+                      : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <div className="space-y-0.5">
+                    <div className="text-xs font-black text-amber-300 flex items-center gap-1.5 uppercase tracking-wider">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Modo Digital (Estilo Gartic)</span>
+                    </div>
+                    <p className="text-[11px] text-slate-300">
+                      Participantes digitam os palpites nos celulares. Pontuação rápida com dicas progressivas de letras.
+                    </p>
+                  </div>
+                  {garticConfig.mode === 'digital' && (
+                    <span className="px-2 py-0.5 rounded-full bg-amber-500/30 text-amber-200 text-[10px] font-bold shrink-0 ml-2">
+                      Ativo
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => onUpdateGarticConfig?.({ mode: 'in_person' })}
+                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                    garticConfig.mode === 'in_person'
+                      ? 'bg-indigo-950/40 border-indigo-500 text-white shadow ring-1 ring-indigo-500/40'
+                      : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <div className="space-y-0.5">
+                    <div className="text-xs font-black text-indigo-300 flex items-center gap-1.5 uppercase tracking-wider">
+                      <Tv className="w-3.5 h-3.5" />
+                      <span>Modo Presencial (Imagem & Ação)</span>
+                    </div>
+                    <p className="text-[11px] text-slate-300">
+                      O artista desenha no celular, o telão projeta e as pessoas na sala gritam o nome. Você valida os acertos.
+                    </p>
+                  </div>
+                  {garticConfig.mode === 'in_person' && (
+                    <span className="px-2 py-0.5 rounded-full bg-indigo-500/30 text-indigo-200 text-[10px] font-bold shrink-0 ml-2">
+                      Ativo
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              {/* Controles de Configuração da Partida */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* 1. Categoria / Tema */}
+                <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                    Tema de Palavras
+                  </span>
+                  <select
+                    value={garticConfig.category}
+                    onChange={(e) => {
+                      const newCat = e.target.value;
+                      const words = getGarticWordOptions(newCat, 3);
+                      onUpdateGarticConfig?.({
+                        category: newCat,
+                        wordChoices: words,
+                        secretWord: words[0] || 'Elefante'
+                      });
+                    }}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs focus:outline-none focus:border-amber-400"
+                  >
+                    {GARTIC_CATEGORIES.map((c) => (
+                      <option key={c.id} value={c.name}>
+                        {c.icon} {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 2. Meta de Pontos */}
+                <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                    Meta de Vitória
+                  </span>
+                  <select
+                    value={garticConfig.targetScore || 120}
+                    onChange={(e) => onUpdateGarticConfig?.({ targetScore: Number(e.target.value) })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs focus:outline-none focus:border-amber-400"
+                  >
+                    <option value={60}>60 pontos (Rápido)</option>
+                    <option value={120}>120 pontos (Padrão Gartic)</option>
+                    <option value={180}>180 pontos (Longo)</option>
+                    <option value={240}>240 pontos (Maratona)</option>
+                  </select>
+                </div>
+
+                {/* 3. Tempo da Rodada */}
+                <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                    Tempo por Desenho
+                  </span>
+                  <select
+                    value={garticConfig.roundTimeSeconds || 80}
+                    onChange={(e) => onUpdateGarticConfig?.({ roundTimeSeconds: Number(e.target.value) })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs focus:outline-none focus:border-amber-400"
+                  >
+                    <option value={45}>45 segundos</option>
+                    <option value={60}>60 segundos</option>
+                    <option value={80}>80 segundos (Padrão)</option>
+                    <option value={100}>100 segundos</option>
+                    <option value={120}>120 segundos</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Seleção do Desenhista (Sorteio vs Manual) */}
+              <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-amber-500 text-black flex items-center justify-center text-xs font-black">
+                      ✏️
+                    </span>
+                    <span className="text-xs font-black text-slate-200">
+                      Desenhista da Rodada:
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onUpdateGarticConfig?.({
+                          selectionMethod: garticConfig.selectionMethod === 'random' ? 'manual' : 'random'
+                        });
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-slate-800 text-[11px] font-bold text-slate-300 hover:text-white border border-slate-700 cursor-pointer"
+                    >
+                      {garticConfig.selectionMethod === 'random' ? 'Modo: Sorteio Randômico' : 'Modo: Escolha Manual'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/90 p-3 rounded-xl border border-slate-800">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-2xl">{garticDrawer?.avatar || '🎨'}</span>
+                    <div>
+                      <div className="text-sm font-black text-white">{garticDrawerName}</div>
+                      <span className="text-[10px] text-slate-400">
+                        {garticDrawer ? 'Participante Selecionado' : 'Nenhum selecionado (Sorteio automático)'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {/* Sorteio Aleatório */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (participants.length === 0) {
+                          onAddSimulatedParticipants?.();
+                          return;
+                        }
+                        const randomP = participants[Math.floor(Math.random() * participants.length)];
+                        onUpdateGarticConfig?.({
+                          currentDrawerId: randomP.id,
+                          currentDrawerName: randomP.name,
+                          currentDrawerAvatar: randomP.avatar
+                        });
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/40 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Shuffle className="w-3.5 h-3.5" />
+                      <span>Sortear Outro</span>
+                    </button>
+
+                    {/* Dropdown de Escolha Manual */}
+                    <select
+                      value={garticConfig.currentDrawerId || ''}
+                      onChange={(e) => {
+                        const chosenId = e.target.value;
+                        const p = participants.find((part) => part.id === chosenId);
+                        onUpdateGarticConfig?.({
+                          currentDrawerId: chosenId,
+                          currentDrawerName: p?.name,
+                          currentDrawerAvatar: p?.avatar,
+                          selectionMethod: 'manual'
+                        });
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-white text-xs focus:outline-none focus:border-amber-400 max-w-[160px]"
+                    >
+                      <option value="">Selecione na lista...</option>
+                      {participants.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.avatar} {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Informações da Palavra Secreta */}
+              <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-slate-300">
+                    Palavra Secreta Atual:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const words = getGarticWordOptions(garticConfig.category || 'Geral & Variados', 3);
+                      onUpdateGarticConfig?.({
+                        wordChoices: words,
+                        secretWord: words[0] || 'Elefante'
+                      });
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-bold text-amber-300 border border-slate-700 cursor-pointer flex items-center gap-1"
+                  >
+                    <Shuffle className="w-3 h-3" />
+                    <span>Trocar Palavra</span>
+                  </button>
+                </div>
+
+                <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-between">
+                  <span className="text-xl font-mono font-black text-amber-300">
+                    {garticConfig.secretWord ? garticConfig.secretWord.toUpperCase() : '(Será sorteada ao iniciar)'}
+                  </span>
+                  <span className="text-xs text-slate-400 font-mono">
+                    Tema: {garticConfig.category}
+                  </span>
+                </div>
+              </div>
+
+              {/* Ações em Tempo Real do Apresentador */}
+              <div className="flex flex-wrap items-center gap-3 pt-2">
+                {!garticConfig.gameStarted || garticConfig.roundState === 'lobby' ? (
+                  <button
+                    type="button"
+                    onClick={handleStartGartic}
+                    className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-indigo-600 hover:opacity-95 text-white font-black text-sm shadow-xl shadow-amber-950/50 cursor-pointer flex items-center gap-2 transition-transform active:scale-95 animate-pulse"
+                  >
+                    <Sparkles className="w-5 h-5" />
+                    <span>▶ Iniciar Jogo de Desenho</span>
+                  </button>
+                ) : (
+                  <>
+                    {onAdvanceGarticNextRound && (
+                      <button
+                        type="button"
+                        onClick={onAdvanceGarticNextRound}
+                        className="px-5 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs shadow-lg cursor-pointer flex items-center gap-2 transition-transform active:scale-95"
+                      >
+                        <Play className="w-4 h-4" />
+                        <span>Avançar para Próxima Rodada</span>
+                      </button>
+                    )}
+
+                    {/* Botões Presenciais de Validação Rápida */}
+                    {garticConfig.mode === 'in_person' && garticConfig.roundState === 'drawing' && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => onGarticInPersonCorrect?.()}
+                          className="px-4 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow-lg cursor-pointer flex items-center gap-2 transition-transform active:scale-95"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>Acertaram! (+10 pts)</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onGarticInPersonSkip?.()}
+                          className="px-4 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs border border-slate-700 cursor-pointer"
+                        >
+                          <span>Pular Palavra</span>
+                        </button>
+                      </>
+                    )}
+
+                    {onResetGarticGame && (
+                      <button
+                        type="button"
+                        onClick={onResetGarticGame}
+                        className="px-4 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs border border-slate-700 cursor-pointer flex items-center gap-1.5"
+                      >
+                        <RotateCcw className="w-4 h-4" />
+                        <span>Resetar Partida</span>
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* SLIDE NORMAL DE QUIZ OU CONTEÚDO */}
-        {!isImpostorSlide && (
+        {!isImpostorSlide && !isGarticSlide && (
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3 flex-wrap gap-2">
               <div>

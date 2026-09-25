@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Slide, SlideType, Team, TeamMode, SavedPresentation } from '../../types';
+import { Slide, SlideType, Team, TeamMode, SavedPresentation, GarticConfig } from '../../types';
 import { PRESET_WORD_CATEGORIES, getWordsForCategory, getRandomWordForCategory, PRESET_TEAMS } from '../../data/presetWords';
+import { GARTIC_CATEGORIES } from '../../data/garticPresets';
 import { storageService, SavedRoom } from '../../services/storage';
 import { createDefaultSlide, convertSlideType } from '../../utils/slidePresets';
 import { useAuth } from '../../context/AuthContext';
@@ -44,7 +45,8 @@ import {
   Cloud,
   Layers,
   Calendar,
-  LogIn
+  LogIn,
+  RotateCcw
 } from 'lucide-react';
 
 interface SlideEditorProps {
@@ -53,6 +55,7 @@ interface SlideEditorProps {
   onSelectSlide: (index: number) => void;
   onUpdateSlides: (slides: Slide[]) => void;
   onStartPresentation: () => void;
+  onResetPresentation?: () => void;
   // Propriedades da Sala para Configuração Prévia
   roomCode?: string;
   roomTitle?: string;
@@ -79,6 +82,7 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
   onSelectSlide,
   onUpdateSlides,
   onStartPresentation,
+  onResetPresentation,
   roomCode = '749201',
   roomTitle = 'Gincana & Slides Interativos',
   presenterPassword = '1234',
@@ -100,6 +104,7 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
   const [newWordInput, setNewWordInput] = useState('');
   const [isNewSlideModalOpen, setIsNewSlideModalOpen] = useState(false);
   const [isThemeGalleryOpen, setIsThemeGalleryOpen] = useState(false);
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showParticipantPassword, setShowParticipantPassword] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -718,6 +723,20 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
             <span className="hidden sm:inline">Salvar Local</span>
           </button>
 
+          {/* Botão Resetar Apresentação */}
+          {onResetPresentation && (
+            <button
+              type="button"
+              onClick={() => setIsResetConfirmOpen(true)}
+              className="px-3 py-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 hover:text-rose-100 text-xs font-bold border border-rose-800/80 flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-sm"
+              title="Resetar participantes, pontuações, sorteios e estatísticas da apresentação"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-rose-400" />
+              <span className="hidden md:inline">Resetar Apresentação</span>
+              <span className="md:hidden">Resetar</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={onStartPresentation}
@@ -998,6 +1017,7 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
                   <option value="interaction_word_cloud">Nuvem de Palavras</option>
                 </optgroup>
                 <optgroup label="Jogos Sociais">
+                  <option value="game_drawing_gartic">🎨 Jogo de Desenho (Gartic & Imagem e Ação)</option>
                   <option value="game_impostor_investigator">O Infiltrado (Modo Investigador)</option>
                   <option value="game_impostor_classic">O Infiltrado (Modo Clássico)</option>
                 </optgroup>
@@ -1266,6 +1286,265 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
                     }}
                     className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white text-xs font-bold font-mono"
                   />
+                </div>
+              </div>
+            )}
+
+            {/* SE FOR O JOGO DE DESENHO (GARTIC & IMAGEM E AÇÃO): CONFIGURAÇÕES DO SLIDE */}
+            {currentSlide.type === 'game_drawing_gartic' && (
+              <div className="p-3.5 rounded-2xl bg-amber-950/20 border border-amber-500/40 space-y-3">
+                <div className="flex items-center gap-2 text-xs font-bold text-amber-300 uppercase tracking-wider">
+                  <span>🎨</span>
+                  <span>Jogo de Desenho: Configurações Deste Slide</span>
+                </div>
+
+                {/* Modo de Jogo */}
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 block mb-1">Modo de Jogo</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateCurrentSlide({
+                          garticConfig: {
+                            ...(currentSlide.garticConfig || {
+                              gameStarted: false,
+                              category: 'Geral & Variados',
+                              secretWord: '',
+                              selectionMethod: 'random',
+                              targetScore: 120,
+                              roundTimeSeconds: 80,
+                              currentRound: 1,
+                              roundState: 'lobby',
+                              strokes: [],
+                              guessedParticipantIds: [],
+                              chatGuesses: [],
+                              scores: {}
+                            }),
+                            mode: 'digital'
+                          }
+                        });
+                      }}
+                      className={`py-2 px-2 rounded-xl border text-xs font-bold text-center cursor-pointer ${
+                        currentSlide.garticConfig?.mode !== 'in_person'
+                          ? 'bg-amber-600 border-amber-500 text-white shadow'
+                          : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      💬 Gartic Digital
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateCurrentSlide({
+                          garticConfig: {
+                            ...(currentSlide.garticConfig || {
+                              gameStarted: false,
+                              category: 'Geral & Variados',
+                              secretWord: '',
+                              selectionMethod: 'random',
+                              targetScore: 120,
+                              roundTimeSeconds: 80,
+                              currentRound: 1,
+                              roundState: 'lobby',
+                              strokes: [],
+                              guessedParticipantIds: [],
+                              chatGuesses: [],
+                              scores: {}
+                            }),
+                            mode: 'in_person'
+                          }
+                        });
+                      }}
+                      className={`py-2 px-2 rounded-xl border text-xs font-bold text-center cursor-pointer ${
+                        currentSlide.garticConfig?.mode === 'in_person'
+                          ? 'bg-indigo-600 border-indigo-500 text-white shadow'
+                          : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      🗣️ Imagem & Ação
+                    </button>
+                  </div>
+                </div>
+
+                {/* Categoria */}
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 block mb-1">Categoria de Palavras</label>
+                  <select
+                    value={currentSlide.garticConfig?.category || 'Geral & Variados'}
+                    onChange={(e) => {
+                      const newCat = e.target.value;
+                      const catObj = GARTIC_CATEGORIES.find((c) => c.name === newCat);
+                      updateCurrentSlide({
+                        garticConfig: {
+                          ...(currentSlide.garticConfig || {
+                            gameStarted: false,
+                            mode: 'digital',
+                            selectionMethod: 'random',
+                            targetScore: 120,
+                            roundTimeSeconds: 80,
+                            currentRound: 1,
+                            roundState: 'lobby',
+                            strokes: [],
+                            guessedParticipantIds: [],
+                            chatGuesses: [],
+                            scores: {}
+                          }),
+                          category: newCat,
+                          customWordList: catObj?.words || [],
+                          secretWord: catObj?.words[0] || 'Elefante'
+                        }
+                      });
+                    }}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white text-xs font-bold"
+                  >
+                    {GARTIC_CATEGORIES.map((cat) => (
+                      <option key={cat.id} value={cat.name}>
+                        {cat.icon} {cat.name} ({cat.words.length} palavras)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Meta de Vitória e Tempo */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-400 block mb-1">Meta de Pontos</label>
+                    <select
+                      value={currentSlide.garticConfig?.targetScore || 120}
+                      onChange={(e) => {
+                        updateCurrentSlide({
+                          garticConfig: {
+                            ...(currentSlide.garticConfig || {
+                              gameStarted: false,
+                              mode: 'digital',
+                              category: 'Geral & Variados',
+                              secretWord: '',
+                              selectionMethod: 'random',
+                              roundTimeSeconds: 80,
+                              currentRound: 1,
+                              roundState: 'lobby',
+                              strokes: [],
+                              guessedParticipantIds: [],
+                              chatGuesses: [],
+                              scores: {}
+                            }),
+                            targetScore: Number(e.target.value)
+                          }
+                        });
+                      }}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white text-xs font-bold"
+                    >
+                      <option value={60}>60 pontos</option>
+                      <option value={120}>120 pontos</option>
+                      <option value={180}>180 pontos</option>
+                      <option value={240}>240 pontos</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-slate-400 block mb-1">Tempo por Desenho</label>
+                    <select
+                      value={currentSlide.garticConfig?.roundTimeSeconds || 80}
+                      onChange={(e) => {
+                        updateCurrentSlide({
+                          garticConfig: {
+                            ...(currentSlide.garticConfig || {
+                              gameStarted: false,
+                              mode: 'digital',
+                              category: 'Geral & Variados',
+                              secretWord: '',
+                              selectionMethod: 'random',
+                              targetScore: 120,
+                              currentRound: 1,
+                              roundState: 'lobby',
+                              strokes: [],
+                              guessedParticipantIds: [],
+                              chatGuesses: [],
+                              scores: {}
+                            }),
+                            roundTimeSeconds: Number(e.target.value)
+                          }
+                        });
+                      }}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white text-xs font-bold"
+                    >
+                      <option value={45}>45s</option>
+                      <option value={60}>60s</option>
+                      <option value={80}>80s</option>
+                      <option value={100}>100s</option>
+                      <option value={120}>120s</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Sorteio vs Escolha do Desenhista */}
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 block mb-1">Escolha do Artista</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateCurrentSlide({
+                          garticConfig: {
+                            ...(currentSlide.garticConfig || {
+                              gameStarted: false,
+                              mode: 'digital',
+                              category: 'Geral & Variados',
+                              secretWord: '',
+                              targetScore: 120,
+                              roundTimeSeconds: 80,
+                              currentRound: 1,
+                              roundState: 'lobby',
+                              strokes: [],
+                              guessedParticipantIds: [],
+                              chatGuesses: [],
+                              scores: {}
+                            }),
+                            selectionMethod: 'random'
+                          }
+                        });
+                      }}
+                      className={`py-2 px-2 rounded-xl border text-xs font-bold text-center cursor-pointer ${
+                        currentSlide.garticConfig?.selectionMethod !== 'manual'
+                          ? 'bg-amber-600 border-amber-500 text-white shadow'
+                          : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      🎲 Randômico
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateCurrentSlide({
+                          garticConfig: {
+                            ...(currentSlide.garticConfig || {
+                              gameStarted: false,
+                              mode: 'digital',
+                              category: 'Geral & Variados',
+                              secretWord: '',
+                              targetScore: 120,
+                              roundTimeSeconds: 80,
+                              currentRound: 1,
+                              roundState: 'lobby',
+                              strokes: [],
+                              guessedParticipantIds: [],
+                              chatGuesses: [],
+                              scores: {}
+                            }),
+                            selectionMethod: 'manual'
+                          }
+                        });
+                      }}
+                      className={`py-2 px-2 rounded-xl border text-xs font-bold text-center cursor-pointer ${
+                        currentSlide.garticConfig?.selectionMethod === 'manual'
+                          ? 'bg-amber-600 border-amber-500 text-white shadow'
+                          : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      👤 Escolha Manual
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -1713,6 +1992,29 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
               </div>
             </div>
 
+            {/* Bloco: Reiniciar / Resetar Apresentação */}
+            {onResetPresentation && (
+              <div className="p-6 rounded-3xl bg-rose-950/20 border border-rose-800/40 shadow-xl space-y-3">
+                <div className="flex items-center gap-2 text-sm font-bold text-rose-400">
+                  <RotateCcw className="w-4 h-4" />
+                  <span>Resetar Apresentação & Zerar Sessão Atual</span>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Zera todos os participantes conectados, placares dos times e participantes, rodadas e sorteios do Infiltrado, estatísticas de respostas acumuladas, permitindo iniciar uma nova sessão ou gincana limpa do zero.
+                </p>
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setIsResetConfirmOpen(true)}
+                    className="px-5 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-xs shadow-lg flex items-center gap-2 cursor-pointer transition-all active:scale-95"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    <span>Resetar Apresentação Completa</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Botão de Salvar Alterações */}
             <div className="flex items-center justify-end gap-3 pt-4">
               <button
@@ -2131,6 +2433,76 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
         onClose={() => setIsNewSlideModalOpen(false)}
         onSelectType={handleSelectNewSlideType}
       />
+
+      {/* MODAL: CONFIRMAR RESET DA APRESENTAÇÃO */}
+      {isResetConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="w-full max-w-md bg-slate-900 border border-rose-800/80 rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="p-6 border-b border-slate-800 bg-rose-950/40 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400 shrink-0">
+                <RotateCcw className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-white">
+                  Resetar Apresentação?
+                </h3>
+                <p className="text-xs text-rose-300 font-medium">
+                  Esta ação limpará a sessão atual
+                </p>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Ao confirmar o reset, todos os seguintes dados serão reiniciados:
+              </p>
+              <ul className="text-xs text-slate-400 space-y-2 pl-2">
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                  <span>Desconectar e remover participantes ativos</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                  <span>Zerar o placar de todos os times e jogadores</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                  <span>Resetar sorteios, rodadas e votos do Infiltrado</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                  <span>Apagar respostas e estatísticas acumuladas</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                  <span>Retornar a apresentação para o primeiro slide</span>
+                </li>
+              </ul>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsResetConfirmOpen(false)}
+                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsResetConfirmOpen(false);
+                    onResetPresentation?.();
+                    showToast('✓ Apresentação resetada com sucesso!');
+                  }}
+                  className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-black shadow-lg shadow-rose-950/50 cursor-pointer transition-all active:scale-95"
+                >
+                  Sim, Resetar Tudo
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -185,6 +185,8 @@ export const ImpostorSlideRenderer: React.FC<ImpostorSlideRendererProps> = ({
           totalImpostorsCount={totalImpostorsCount}
           isGameOver={config.winner !== undefined}
           winner={config.winner}
+          secretWord={config.secretWord}
+          category={config.category}
           onNextRound={onAdvanceToNextRound ? () => onAdvanceToNextRound(true) : undefined}
           onAdvanceToNextRound={onAdvanceToNextRound}
           onNewMatch={onStartNewMatch || onResetGame}

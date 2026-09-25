@@ -229,5 +229,84 @@ export const storageService = {
       updatedAt: Date.now()
     };
     this.saveRoom(updatedRoom);
+  },
+
+  // Gerenciamento de Sessão Ativa de Apresentação
+  getSavedSession(code: string): SavedPresentationSession | null {
+    if (typeof window === 'undefined') return null;
+    try {
+      const clean = code.trim().toUpperCase();
+      const raw = localStorage.getItem(`apresentalive_session_${clean}`);
+      if (!raw) return null;
+      const parsed: SavedPresentationSession = JSON.parse(raw);
+      
+      const pCount = Object.keys(parsed.participants || {}).length;
+      const aCount = Object.keys(parsed.answersSubmitted || {}).length;
+      const pinsCount = (parsed.imagePins || []).length;
+      const termsCount = (parsed.termSubmissions || []).length;
+      const currentSlideIdx = parsed.currentSlideIndex || 0;
+      
+      // Tem dados de sessão se houver participantes, respostas, ou progresso além do início
+      parsed.hasSessionData = pCount > 0 || aCount > 0 || pinsCount > 0 || termsCount > 0 || currentSlideIdx > 0;
+      return parsed;
+    } catch (e) {
+      console.error('Erro ao ler sessão salva:', e);
+      return null;
+    }
+  },
+
+  saveSession(session: Partial<SavedPresentationSession> & { roomCode: string }): void {
+    if (typeof window === 'undefined') return;
+    try {
+      const clean = session.roomCode.trim().toUpperCase();
+      const existing: Partial<SavedPresentationSession> = this.getSavedSession(clean) || {};
+      const updated: SavedPresentationSession = {
+        roomCode: clean,
+        roomTitle: session.roomTitle || existing.roomTitle || 'Apresentação',
+        lastOpenedAt: Date.now(),
+        currentSlideIndex: session.currentSlideIndex !== undefined ? session.currentSlideIndex : (existing.currentSlideIndex || 0),
+        participants: session.participants !== undefined ? session.participants : (existing.participants || {}),
+        answersSubmitted: session.answersSubmitted !== undefined ? session.answersSubmitted : (existing.answersSubmitted || {}),
+        imagePins: session.imagePins !== undefined ? session.imagePins : (existing.imagePins || []),
+        termSubmissions: session.termSubmissions !== undefined ? session.termSubmissions : (existing.termSubmissions || []),
+        teams: session.teams !== undefined ? session.teams : existing.teams,
+        teamMode: session.teamMode !== undefined ? session.teamMode : existing.teamMode,
+        slides: session.slides !== undefined ? session.slides : existing.slides,
+        hasSessionData: true
+      };
+      localStorage.setItem(`apresentalive_session_${clean}`, JSON.stringify(updated));
+    } catch (e) {
+      console.error('Erro ao salvar sessão:', e);
+    }
+  },
+
+  clearSavedSession(code: string): void {
+    if (typeof window === 'undefined') return;
+    try {
+      const clean = code.trim().toUpperCase();
+      localStorage.removeItem(`apresentalive_session_${clean}`);
+    } catch (e) {
+      console.error('Erro ao limpar sessão:', e);
+    }
+  },
+
+  hasPreviousSession(code: string): boolean {
+    const session = this.getSavedSession(code);
+    return Boolean(session && session.hasSessionData);
   }
 };
+
+export interface SavedPresentationSession {
+  roomCode: string;
+  roomTitle: string;
+  lastOpenedAt: number;
+  currentSlideIndex: number;
+  participants: Record<string, any>;
+  answersSubmitted: Record<string, any>;
+  imagePins: any[];
+  termSubmissions: any[];
+  teams?: any[];
+  teamMode?: any;
+  slides?: any[];
+  hasSessionData?: boolean;
+}

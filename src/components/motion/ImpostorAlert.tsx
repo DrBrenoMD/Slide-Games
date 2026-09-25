@@ -268,6 +268,8 @@ interface ImpostorRoundEliminationRevealProps {
   totalImpostorsCount: number;
   isGameOver: boolean;
   winner?: 'impostors' | 'civilians' | 'agents';
+  secretWord?: string;
+  category?: string;
   onNextRound?: () => void;
   onAdvanceToNextRound?: (changeWord: boolean) => void;
   onNewMatch?: () => void;
@@ -288,6 +290,8 @@ export const ImpostorRoundEliminationReveal: React.FC<ImpostorRoundEliminationRe
   totalImpostorsCount,
   isGameOver,
   winner,
+  secretWord,
+  category,
   onNextRound,
   onAdvanceToNextRound,
   onNewMatch,
@@ -424,6 +428,30 @@ export const ImpostorRoundEliminationReveal: React.FC<ImpostorRoundEliminationRe
                   </span>
                 </div>
               </div>
+
+              {/* Revelação da Palavra Secreta quando a Partida Encerra */}
+              {isGameOver && secretWord && (
+                <div className="mt-3 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-500/20 via-indigo-500/20 to-purple-500/20 border-2 border-amber-400/60 shadow-xl space-y-2 text-center animate-in fade-in zoom-in-95">
+                  <div className="flex items-center justify-center gap-1.5 text-amber-300 font-extrabold text-xs sm:text-sm uppercase tracking-wider">
+                    <Sparkles className="w-4 h-4 text-amber-400" />
+                    <span>Fim de Partida • Palavra Secreta Revelada</span>
+                    <Sparkles className="w-4 h-4 text-amber-400" />
+                  </div>
+                  <div className="text-slate-300 text-xs sm:text-sm">
+                    A palavra secreta da categoria <strong className="text-white">"{category || 'Geral'}"</strong> era:
+                  </div>
+                  <div className="text-3xl sm:text-5xl font-black text-amber-300 tracking-tight font-display drop-shadow-[0_0_20px_rgba(251,191,36,0.6)]">
+                    {secretWord}
+                  </div>
+                  <div className="inline-block px-3.5 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-black/50 border border-white/20">
+                    {winner === 'agents' || winner === 'civilians' ? (
+                      <span className="text-emerald-400">🛡️ Vitória dos Agentes & Investigadores!</span>
+                    ) : (
+                      <span className="text-rose-400">🚨 Vitória dos Infiltrados!</span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Ações do Apresentador ou Ações no Telão */}
@@ -611,6 +639,16 @@ export const ImpostorStageReveal: React.FC<ImpostorStageRevealProps> = ({
                 </p>
               </div>
             )}
+
+            {/* Revelação da Palavra Secreta no Resultado Final */}
+            <div className="mt-5 p-4 rounded-2xl bg-indigo-950/70 border border-indigo-500/40 text-center space-y-1">
+              <span className="text-[11px] uppercase tracking-wider font-extrabold text-indigo-300 block">
+                Palavra Secreta da Categoria "{category || 'Geral'}":
+              </span>
+              <span className="text-3xl sm:text-4xl font-black text-amber-300 font-display drop-shadow-[0_0_15px_rgba(251,191,36,0.6)]">
+                {secretWord}
+              </span>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

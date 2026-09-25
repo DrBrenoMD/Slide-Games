@@ -17,7 +17,8 @@ import {
   Quote,
   QrCode,
   Trophy,
-  Layout
+  Layout,
+  Paintbrush
 } from 'lucide-react';
 
 interface NewSlideOption {
@@ -48,6 +49,15 @@ const SLIDE_TYPE_OPTIONS: NewSlideOption[] = [
     icon: <HelpCircle className="w-6 h-6 text-indigo-400" />,
     badge: 'Popular',
     badgeColor: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
+  },
+  {
+    type: 'game_drawing_gartic',
+    title: 'Jogo de Desenho (Gartic & Imagem e Ação)',
+    description: 'Um participante desenha no celular, o desenho é espelhado no telão e os demais adivinham em tempo real com ranking e chat!',
+    category: 'game',
+    icon: <Paintbrush className="w-6 h-6 text-amber-400" />,
+    badge: 'Novo Jogo',
+    badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40'
   },
   {
     type: 'game_impostor_investigator',
